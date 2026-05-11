@@ -218,7 +218,16 @@ class Client(discord.Client):
                 vc = await channel.connect()
             vc.play(discord.FFmpegPCMAudio(executable="ffmpeg", source=next_track['filename']), after=lambda e: self.loop.create_task(self.play_next(guild, channel, message_channel)))
             self.now_playing[guild.id] = next_track
-            embed = discord.Embed(title="▶️ Now Playing", description=f"{next_track['title']}", color=discord.Color.green())
+            # Format embed mirip Jockie Music
+            title = next_track.get('title', 'Unknown')
+            url = next_track.get('webpage_url', None)
+            channel_name = next_track.get('uploader', 'YouTube')
+            embed = discord.Embed(
+                title="▶️ Started playing",
+                description=f"[{title}]({url})" if url else title,
+                color=discord.Color.green()
+            )
+            embed.add_field(name="Channel", value=channel_name, inline=True)
             await message_channel.send(embed=embed)
         else:
             self.now_playing[guild.id] = None
@@ -242,7 +251,7 @@ class Client(discord.Client):
             return
         channel = message.author.voice.channel
         queue = self.music_queues.setdefault(message.guild.id, [])
-        queue.append({'title': info['title'], 'filename': filename})
+        queue.append({'title': info['title'], 'filename': filename, 'webpage_url': info.get('webpage_url'), 'uploader': info.get('uploader', 'YouTube')})
         self.music_queues[message.guild.id] = queue
         if not message.guild.voice_client or not message.guild.voice_client.is_playing():
             await self.play_next(message.guild, channel, message.channel)
