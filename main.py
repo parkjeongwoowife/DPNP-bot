@@ -534,6 +534,9 @@ class Client(discord.Client):
         
         elif msg == '!shera':
             await message.channel.send('inpokan by1 ml')
+        
+        elif msg == '!karl':
+            await message.channel.send('noo my kisah')
             
         
         elif msg.startswith('!profile'):
