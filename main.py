@@ -251,23 +251,48 @@ class Client(discord.Client):
 
             ffmpeg_opts = {
                 'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
-                'options': '-vn'
+                'options': '-vn -ar 48000 -ac 2 -b:a 128k'
             }
+            audio_source = discord.FFmpegPCMAudio(
+                executable='ffmpeg',
+                source=next_track['filename'],
+                **ffmpeg_opts
+            )
+            audio_source = discord.PCMVolumeTransformer(audio_source, volume=1.0)
             vc.play(
-                discord.FFmpegPCMAudio(executable="ffmpeg", source=next_track['filename'], **ffmpeg_opts),
+                audio_source,
                 after=lambda e: self.loop.create_task(self.play_next(guild, channel, message_channel))
             )
             self.now_playing[guild.id] = next_track
 
-            title = next_track.get('title', 'Unknown')
-            url = next_track.get('webpage_url', None)
-            channel_name = next_track.get('uploader', 'YouTube')
+            title = next_track.get("title", "Unknown")
+            url = next_track.get("webpage_url", None)
+            uploader = next_track.get("uploader", "")
+            source = next_track.get("source", "SoundCloud")
+
+            # Format: Started playing Judul by Artist
+            if uploader and uploader.lower() not in title.lower():
+                display = f"**{title}** by **{uploader}**"
+            else:
+                display = f"**{title}**"
+
+            # Icon sesuai source
+            if source == "YouTube":
+                icon = "<:youtube:1234>"
+                color = discord.Color.red()
+                prefix = "🔴"
+            else:
+                icon = ""
+                color = discord.Color.from_rgb(255, 85, 0)
+                prefix = "🟠"
+
             embed = discord.Embed(
-                title="▶️ Started playing",
-                description=f"[{title}]({url})" if url else title,
-                color=discord.Color.green()
+                description=f"{prefix} Started playing {display}",
+                color=color
             )
-            embed.add_field(name="Channel", value=channel_name, inline=True)
+            if url:
+                embed.description = f"{prefix} Started playing [{title}]({url})" + (f" by **{uploader}**" if uploader and uploader.lower() not in title.lower() else "")
+
             await message_channel.send(embed=embed)
         else:
             self.now_playing[guild.id] = None
@@ -384,7 +409,8 @@ class Client(discord.Client):
             'title': info['title'],
             'filename': filename,
             'webpage_url': info.get('webpage_url'),
-            'uploader': info.get('uploader', source)
+            'uploader': info.get('uploader', source),
+            'source': source
         })
         self.music_queues[message.guild.id] = queue
 
@@ -415,7 +441,8 @@ class Client(discord.Client):
             'title': info['title'],
             'filename': filename,
             'webpage_url': info.get('webpage_url'),
-            'uploader': info.get('uploader', source)
+            'uploader': info.get('uploader', source),
+            'source': source
         })
         self.music_queues[message.guild.id] = queue
 
