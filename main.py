@@ -486,8 +486,10 @@ class Client(discord.Client):
 
     async def leave_voice(self, message):
         if message.guild.voice_client:
+            self.music_queues[message.guild.id] = []
+            self.now_playing[message.guild.id] = None
             await message.guild.voice_client.disconnect()
-            await message.channel.send("❌ Bot keluar dari voice channel.")
+            await message.channel.send("👋 Bot keluar dari voice channel dan antrian dikosongkan.")
         else:
             await message.channel.send("❌ Bot tidak sedang di voice channel.")
 
@@ -496,9 +498,32 @@ class Client(discord.Client):
         if vc and vc.is_playing():
             vc.stop()
             self.music_queues[message.guild.id] = []
+            self.now_playing[message.guild.id] = None
             await message.channel.send("⏹️ Musik dihentikan dan antrian dikosongkan.")
         else:
             await message.channel.send("❌ Tidak ada musik yang sedang diputar.")
+
+    async def skip_music(self, message):
+        vc = message.guild.voice_client
+        now = self.now_playing.get(message.guild.id)
+        if vc and vc.is_playing():
+            title = now["title"] if now else "lagu ini"
+            vc.stop()  # akan trigger play_next otomatis lewat after callback
+            await message.channel.send(f"⏭️ Skipped: **{title}**")
+        else:
+            await message.channel.send("❌ Tidak ada musik yang sedang diputar.")
+
+    async def remove_track(self, message, index):
+        queue = self.music_queues.get(message.guild.id, [])
+        if not queue:
+            await message.channel.send("❌ Antrian kosong.")
+            return
+        if index < 1 or index > len(queue):
+            await message.channel.send(f"❌ Nomor tidak valid. Antrian punya {len(queue)} lagu.")
+            return
+        removed = queue.pop(index - 1)
+        self.music_queues[message.guild.id] = queue
+        await message.channel.send(f"🗑️ Dihapus dari antrian: **{removed['title']}**")
 
     def __init__(self, *, intents):
         super().__init__(intents=intents)
@@ -723,6 +748,16 @@ class Client(discord.Client):
         elif msg.startswith('!d '):
             query = message.content.split(' ', 1)[1]
             await self.search_and_play(message, query)
+            return
+        elif msg.startswith('!skip'):
+            await self.skip_music(message)
+            return
+        elif msg.startswith('!remove '):
+            try:
+                index = int(message.content.split(' ', 1)[1])
+                await self.remove_track(message, index)
+            except ValueError:
+                await message.channel.send('❌ Pakai: !remove [nomor] contoh: !remove 2')
             return
         elif msg.startswith('!queue'):
             queue = self.music_queues.get(message.guild.id, [])
