@@ -272,28 +272,76 @@ class Client(discord.Client):
         else:
             self.now_playing[guild.id] = None
 
-    # ===== SEARCH & PLAY (!d command) =====
-    async def search_and_play(self, message, query):
+    # ===== HELPER: DOWNLOAD DENGAN FALLBACK =====
+    async def download_track(self, query, is_url=False):
+        """Coba YouTube dulu, kalau gagal fallback ke SoundCloud."""
         import yt_dlp
 
-        if not message.author.voice:
-            await message.channel.send("❌ Kamu harus join voice channel dulu!")
-            return
-
-        await message.channel.send("🔍 Mencari lagu...")
-
-        ydl_opts = get_ydl_opts(output_template='%(id)s.%(ext)s')
-        ydl_opts['default_search'] = 'ytsearch1'
+        # === Coba YouTube dulu ===
+        ydl_opts_yt = get_ydl_opts(output_template='%(id)s.%(ext)s')
+        if not is_url:
+            ydl_opts_yt['default_search'] = 'ytsearch1'
 
         try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            with yt_dlp.YoutubeDL(ydl_opts_yt) as ydl:
                 info = ydl.extract_info(query, download=True)
                 if 'entries' in info:
                     info = info['entries'][0]
                 filename = ydl.prepare_filename(info)
+                print(f"[Music] YouTube OK: {info['title']}")
+                return info, filename, 'YouTube'
         except Exception as e:
-            await message.channel.send(f"❌ Gagal memutar lagu: {str(e)[:400]}")
+            print(f"[Music] YouTube gagal: {e} — mencoba SoundCloud...")
+
+        # === Fallback SoundCloud ===
+        # Kalau input URL YouTube, ambil judulnya dulu buat cari di SC
+        search_query = query
+        if is_url and ('youtube.com' in query or 'youtu.be' in query):
+            # Coba ambil judul dari URL tanpa download
+            try:
+                ydl_opts_info = get_ydl_opts()
+                ydl_opts_info['skip_download'] = True
+                with yt_dlp.YoutubeDL(ydl_opts_info) as ydl:
+                    info_only = ydl.extract_info(query, download=False)
+                    search_query = info_only.get('title', query)
+            except:
+                search_query = query  # pakai URL asli kalau gagal
+
+        ydl_opts_sc = {
+            'format': 'bestaudio/best',
+            'quiet': True,
+            'noplaylist': True,
+            'outtmpl': '%(id)s.%(ext)s',
+            'default_search': 'scsearch1',
+        }
+
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts_sc) as ydl:
+                info = ydl.extract_info(search_query, download=True)
+                if 'entries' in info:
+                    info = info['entries'][0]
+                filename = ydl.prepare_filename(info)
+                print(f"[Music] SoundCloud OK: {info['title']}")
+                return info, filename, 'SoundCloud'
+        except Exception as e:
+            print(f"[Music] SoundCloud juga gagal: {e}")
+            raise Exception(f"YouTube & SoundCloud gagal. Coba lagu lain.")
+
+    # ===== SEARCH & PLAY (!d command) =====
+    async def search_and_play(self, message, query):
+        if not message.author.voice:
+            await message.channel.send("❌ Kamu harus join voice channel dulu!")
             return
+
+        status_msg = await message.channel.send("🔍 Mencari lagu...")
+
+        try:
+            info, filename, source = await self.download_track(query, is_url=False)
+        except Exception as e:
+            await status_msg.edit(content=f"❌ Gagal memutar lagu: {str(e)[:400]}")
+            return
+
+        await status_msg.edit(content=f"✅ Ditemukan di **{source}**: {info['title']}")
 
         channel = message.author.voice.channel
         queue = self.music_queues.setdefault(message.guild.id, [])
@@ -301,7 +349,7 @@ class Client(discord.Client):
             'title': info['title'],
             'filename': filename,
             'webpage_url': info.get('webpage_url'),
-            'uploader': info.get('uploader', 'YouTube')
+            'uploader': info.get('uploader', source)
         })
         self.music_queues[message.guild.id] = queue
 
@@ -312,25 +360,19 @@ class Client(discord.Client):
 
     # ===== PLAY BY URL (!play command) =====
     async def play_music(self, message, url):
-        import yt_dlp
-
         if not message.author.voice:
             await message.channel.send("❌ Kamu harus join voice channel dulu!")
             return
 
-        await message.channel.send("⏳ Memuat lagu...")
-
-        ydl_opts = get_ydl_opts(output_template='%(id)s.%(ext)s')
+        status_msg = await message.channel.send("⏳ Memuat lagu...")
 
         try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-                if 'entries' in info:
-                    info = info['entries'][0]
-                filename = ydl.prepare_filename(info)
+            info, filename, source = await self.download_track(url, is_url=True)
         except Exception as e:
-            await message.channel.send(f"❌ Gagal memutar lagu: {str(e)[:400]}")
+            await status_msg.edit(content=f"❌ Gagal memutar lagu: {str(e)[:400]}")
             return
+
+        await status_msg.edit(content=f"✅ Ditemukan di **{source}**: {info['title']}")
 
         channel = message.author.voice.channel
         queue = self.music_queues.setdefault(message.guild.id, [])
@@ -338,7 +380,7 @@ class Client(discord.Client):
             'title': info['title'],
             'filename': filename,
             'webpage_url': info.get('webpage_url'),
-            'uploader': info.get('uploader', 'YouTube')
+            'uploader': info.get('uploader', source)
         })
         self.music_queues[message.guild.id] = queue
 
