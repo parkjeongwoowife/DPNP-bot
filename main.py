@@ -14,10 +14,10 @@ BOOST_CHANNEL_ID = 1417152381291860118
 BOOSTER_ROLE_ID = 1437740399786459247    
 AUTO_ROLE_ID = 1438899323336130802
 RULES_CHANNEL_ID = 1459140957932093652
-LEVEL_UP_CHANNEL_ID = 1467701484102619257  # GANTI ke channel rank-up
+LEVEL_UP_CHANNEL_ID = 1467701484102619257
 
 LEVEL_ROLES = {
-    5: 1467711658934927461,   # GANTI ID role
+    5: 1467711658934927461,
     10: 1467711802870599946,
     20: 1467711915177541847,
     30: 1467712000367792330,
@@ -26,7 +26,6 @@ LEVEL_ROLES = {
     75: 1467712305323184172,
     85: 1467712397807587452,
     100: 1467712463435989068
-
 }
 
 BADGES = {
@@ -39,7 +38,6 @@ BADGES = {
     75: "👑 Penguasa Tongkrongan",
     85: "🐐 Sepuh Abadi",
     100: "🐐 GOAT"
-
 }
 
 XP_FILE = "xp_data.json"
@@ -48,11 +46,11 @@ DAILY_XP = 50
 voice_join_time = {}
 daily_claims = {}
 last_message_time = {}
-XP_COOLDOWN = 60  # detik
+XP_COOLDOWN = 60
 
-spam_records = {}            # user_id -> deque of timestamps
-SPAM_WINDOW = 10             # detik jendela waktu untuk hitung spam
-SPAM_THRESHOLD = 5           # jumlah pesan dalam SPAM_WINDOW dianggap spam
+spam_records = {}
+SPAM_WINDOW = 10
+SPAM_THRESHOLD = 5
 
 if os.path.exists(XP_FILE):
     with open(XP_FILE, "r") as f:
@@ -63,6 +61,40 @@ else:
 def save_xp():
     with open(XP_FILE, "w") as f:
         json.dump(xp_data, f)
+
+# ===== HELPER: PATH COOKIES =====
+def get_cookies_path():
+    """Cari cookies.txt di beberapa lokasi, return path yang ada."""
+    candidates = [
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cookies.txt'),  # sama folder main.py
+        '/app/cookies.txt',       # Railway default app root
+        'cookies.txt',            # working directory
+    ]
+    for path in candidates:
+        if os.path.exists(path):
+            print(f"[Cookies] Ditemukan di: {path}")
+            return path
+    print("[Cookies] cookies.txt TIDAK ditemukan! YouTube mungkin block download.")
+    return None
+
+# ===== HELPER: YT-DLP OPTIONS =====
+def get_ydl_opts(output_template='%(id)s.%(ext)s'):
+    """Return yt-dlp options dengan cookies jika tersedia."""
+    opts = {
+        'format': 'bestaudio/best',
+        'quiet': True,
+        'noplaylist': True,
+        'outtmpl': output_template,
+        # Hindari deteksi bot
+        'extractor_args': {'youtube': {'skip': ['dash', 'hls']}},
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+        },
+    }
+    cookies_path = get_cookies_path()
+    if cookies_path:
+        opts['cookiefile'] = cookies_path
+    return opts
 
 # ================= FIXED BUTTON ROLE =================
 
@@ -77,13 +109,10 @@ class RoleButton(discord.ui.Button):
 
     async def callback(self, interaction: discord.Interaction):
         role = interaction.guild.get_role(self.role_id)
-
         if role is None:
             await interaction.response.send_message("Role tidak ditemukan.", ephemeral=True)
             return
-
         member = interaction.user
-
         if role in member.roles:
             await member.remove_roles(role)
             await interaction.response.send_message(f"❌ Role **{role.name}** dihapus dari kamu.", ephemeral=True)
@@ -203,8 +232,8 @@ class LeaderboardView(View):
         self._update_buttons()
         await interaction.response.edit_message(embed=self._make_embed(), view=self)
 
+
 class Client(discord.Client):
-    # ====== MUSIC QUEUE SYSTEM ======
     music_queues = {}
     now_playing = {}
 
@@ -216,9 +245,17 @@ class Client(discord.Client):
             vc = guild.voice_client
             if not vc:
                 vc = await channel.connect()
-            vc.play(discord.FFmpegPCMAudio(executable="ffmpeg", source=next_track['filename']), after=lambda e: self.loop.create_task(self.play_next(guild, channel, message_channel)))
+
+            ffmpeg_opts = {
+                'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
+                'options': '-vn'
+            }
+            vc.play(
+                discord.FFmpegPCMAudio(executable="ffmpeg", source=next_track['filename'], **ffmpeg_opts),
+                after=lambda e: self.loop.create_task(self.play_next(guild, channel, message_channel))
+            )
             self.now_playing[guild.id] = next_track
-            # Format embed mirip Jockie Music
+
             title = next_track.get('title', 'Unknown')
             url = next_track.get('webpage_url', None)
             channel_name = next_track.get('uploader', 'YouTube')
@@ -232,19 +269,19 @@ class Client(discord.Client):
         else:
             self.now_playing[guild.id] = None
 
+    # ===== SEARCH & PLAY (!d command) =====
     async def search_and_play(self, message, query):
         import yt_dlp
-        import os
-        ydl_opts = {
-            'format': 'bestaudio/best',
-            'quiet': True,
-            'noplaylist': True,
-            'default_search': 'ytsearch1',
-            'outtmpl': 'song.%(ext)s',
-        }
-        # Tambahkan cookies.txt jika ada
-        if os.path.exists('cookies.txt'):
-            ydl_opts['cookiefile'] = 'cookies.txt'
+
+        if not message.author.voice:
+            await message.channel.send("❌ Kamu harus join voice channel dulu!")
+            return
+
+        await message.channel.send("🔍 Mencari lagu...")
+
+        ydl_opts = get_ydl_opts(output_template='%(id)s.%(ext)s')
+        ydl_opts['default_search'] = 'ytsearch1'
+
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(query, download=True)
@@ -254,19 +291,60 @@ class Client(discord.Client):
         except Exception as e:
             await message.channel.send(f"❌ Gagal memutar lagu: {str(e)[:400]}")
             return
-        if not message.author.voice:
-            await message.channel.send("❌ Kamu harus join voice channel dulu!")
-            return
+
         channel = message.author.voice.channel
         queue = self.music_queues.setdefault(message.guild.id, [])
-        queue.append({'title': info['title'], 'filename': filename, 'webpage_url': info.get('webpage_url'), 'uploader': info.get('uploader', 'YouTube')})
+        queue.append({
+            'title': info['title'],
+            'filename': filename,
+            'webpage_url': info.get('webpage_url'),
+            'uploader': info.get('uploader', 'YouTube')
+        })
         self.music_queues[message.guild.id] = queue
+
         if not message.guild.voice_client or not message.guild.voice_client.is_playing():
             await self.play_next(message.guild, channel, message.channel)
         else:
             await message.channel.send(f"➕ Ditambahkan ke antrian: {info['title']}")
 
-    # ================= MUSIC BOT =================
+    # ===== PLAY BY URL (!play command) =====
+    async def play_music(self, message, url):
+        import yt_dlp
+
+        if not message.author.voice:
+            await message.channel.send("❌ Kamu harus join voice channel dulu!")
+            return
+
+        await message.channel.send("⏳ Memuat lagu...")
+
+        ydl_opts = get_ydl_opts(output_template='%(id)s.%(ext)s')
+
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+                if 'entries' in info:
+                    info = info['entries'][0]
+                filename = ydl.prepare_filename(info)
+        except Exception as e:
+            await message.channel.send(f"❌ Gagal memutar lagu: {str(e)[:400]}")
+            return
+
+        channel = message.author.voice.channel
+        queue = self.music_queues.setdefault(message.guild.id, [])
+        queue.append({
+            'title': info['title'],
+            'filename': filename,
+            'webpage_url': info.get('webpage_url'),
+            'uploader': info.get('uploader', 'YouTube')
+        })
+        self.music_queues[message.guild.id] = queue
+
+        if not message.guild.voice_client or not message.guild.voice_client.is_playing():
+            await self.play_next(message.guild, channel, message.channel)
+        else:
+            await message.channel.send(f"➕ Ditambahkan ke antrian: {info['title']}")
+
+    # ===== MUSIC CONTROLS =====
     async def join_voice(self, message):
         if message.author.voice:
             channel = message.author.voice.channel
@@ -282,29 +360,6 @@ class Client(discord.Client):
         else:
             await message.channel.send("❌ Bot tidak sedang di voice channel.")
 
-    async def play_music(self, message, url):
-        import yt_dlp
-        if not message.author.voice:
-            await message.channel.send("❌ Kamu harus join voice channel dulu!")
-            return
-        ydl_opts = {
-            'format': 'bestaudio/best',
-            'quiet': True,
-            'outtmpl': 'song.%(ext)s',
-            'noplaylist': True,
-        }
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            filename = ydl.prepare_filename(info)
-        channel = message.author.voice.channel
-        queue = self.music_queues.setdefault(message.guild.id, [])
-        queue.append({'title': info['title'], 'filename': filename})
-        self.music_queues[message.guild.id] = queue
-        if not message.guild.voice_client or not message.guild.voice_client.is_playing():
-            await self.play_next(message.guild, channel, message.channel)
-        else:
-            await message.channel.send(f"➕ Ditambahkan ke antrian: {info['title']}")
-
     async def stop_music(self, message):
         vc = message.guild.voice_client
         if vc and vc.is_playing():
@@ -313,33 +368,7 @@ class Client(discord.Client):
             await message.channel.send("⏹️ Musik dihentikan dan antrian dikosongkan.")
         else:
             await message.channel.send("❌ Tidak ada musik yang sedang diputar.")
-        # ===== SLASH COMMAND UNTUK HELP DAN QUEUE =====
-        async def setup_hook(self):
-            await self.tree.sync()
-            @self.tree.command(name="help", description="Lihat semua fitur DPNP Bot")
-            async def help_command(interaction: discord.Interaction):
-                embed = discord.Embed(title="DPNP Bot Help", color=discord.Color.blurple())
-                embed.add_field(name="Musik", value="!play [link_youtube]\n!d [judul lagu]\n!stop\n!join\n!leave\n/queue", inline=False)
-                embed.add_field(name="XP & Level", value="!top\n!rank\n!profile\n!daily", inline=False)
-                embed.add_field(name="Role", value="/rolepanel (ambil role)", inline=False)
-                embed.add_field(name="Fun", value="!kiss, !slap, !hug, !bite, !pat, !kill", inline=False)
-                embed.set_footer(text="DPNP Bot by wuwa5741-art")
-                await interaction.response.send_message(embed=embed, ephemeral=True)
 
-            @self.tree.command(name="queue", description="Lihat antrian lagu saat ini")
-            async def queue_command(interaction: discord.Interaction):
-                queue = self.music_queues.get(interaction.guild_id, [])
-                now = self.now_playing.get(interaction.guild_id)
-                desc = ""
-                if now:
-                    desc += f"▶️ Now Playing: {now['title']}\n"
-                if queue:
-                    for idx, track in enumerate(queue, 1):
-                        desc += f"{idx}. {track['title']}\n"
-                else:
-                    desc += "(Antrian kosong)"
-                embed = discord.Embed(title="Music Queue", description=desc, color=discord.Color.orange())
-                await interaction.response.send_message(embed=embed, ephemeral=False)
     def __init__(self, *, intents):
         super().__init__(intents=intents)
         self.tree = app_commands.CommandTree(self)
@@ -347,35 +376,59 @@ class Client(discord.Client):
     async def setup_hook(self):
         await self.tree.sync()
 
+        @self.tree.command(name="help", description="Lihat semua fitur DPNP Bot")
+        async def help_command(interaction: discord.Interaction):
+            embed = discord.Embed(title="DPNP Bot Help", color=discord.Color.blurple())
+            embed.add_field(name="Musik", value="!play [link_youtube]\n!d [judul lagu]\n!stop\n!join\n!leave\n!queue\n/queue", inline=False)
+            embed.add_field(name="XP & Level", value="!top\n!rank\n!profile\n!daily", inline=False)
+            embed.add_field(name="Role", value="/rolepanel (ambil role)", inline=False)
+            embed.add_field(name="Fun", value="!kiss, !slap, !hug, !bite, !pat, !kill", inline=False)
+            embed.set_footer(text="DPNP Bot by wuwa5741-art")
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        @self.tree.command(name="queue", description="Lihat antrian lagu saat ini")
+        async def queue_command(interaction: discord.Interaction):
+            queue = self.music_queues.get(interaction.guild_id, [])
+            now = self.now_playing.get(interaction.guild_id)
+            desc = ""
+            if now:
+                desc += f"▶️ Now Playing: {now['title']}\n"
+            if queue:
+                for idx, track in enumerate(queue, 1):
+                    desc += f"{idx}. {track['title']}\n"
+            else:
+                desc += "(Antrian kosong)"
+            embed = discord.Embed(title="Music Queue", description=desc, color=discord.Color.orange())
+            await interaction.response.send_message(embed=embed)
+
     async def on_ready(self):
         print(f'Logged on as {self.user}!')
+        # Cek cookies saat startup
+        cookies_path = get_cookies_path()
+        if cookies_path:
+            print(f"[Startup] cookies.txt OK: {cookies_path}")
+        else:
+            print("[Startup] WARNING: cookies.txt tidak ditemukan!")
 
-        # Register persistent view DI SINI
         try:
             self.add_view(RolePanel())
             print("Persistent RolePanel loaded")
         except Exception as e:
             print("Gagal load RolePanel:", e)
 
-        
-        
     # ===== XP FUNCTION =====
     def add_xp(self, member, amount):
         user_id = str(member.id)
-
         if user_id not in xp_data:
             xp_data[user_id] = {"xp": 0, "level": 1}
-
         xp_data[user_id]["xp"] += amount
         level = xp_data[user_id]["level"]
         xp_needed = level * 100
-
         if xp_data[user_id]["xp"] >= xp_needed:
             xp_data[user_id]["xp"] -= xp_needed
             xp_data[user_id]["level"] += 1
             save_xp()
             return True
-
         save_xp()
         return False
 
@@ -383,20 +436,16 @@ class Client(discord.Client):
     async def on_voice_state_update(self, member, before, after):
         if before.channel is None and after.channel is not None:
             voice_join_time[member.id] = datetime.datetime.now()
-
         elif before.channel is not None and after.channel is None:
             if member.id in voice_join_time:
                 join_time = voice_join_time.pop(member.id)
                 duration = (datetime.datetime.now() - join_time).total_seconds()
-                xp_earned = int(duration // 120)  # 2 menit = 1 XP
-
+                xp_earned = int(duration // 120)
                 if xp_earned > 0:
                     leveled_up = self.add_xp(member, xp_earned)
-
                     if leveled_up:
                         new_level = xp_data[str(member.id)]["level"]
                         channel = member.guild.get_channel(LEVEL_UP_CHANNEL_ID)
-
                         if channel:
                             embed = discord.Embed(
                                 title="🎉 LEVEL UP!",
@@ -404,7 +453,6 @@ class Client(discord.Client):
                                 color=discord.Color.gold()
                             )
                             await channel.send(embed=embed)
-
                         if new_level in LEVEL_ROLES:
                             role = member.guild.get_role(LEVEL_ROLES[new_level])
                             if role:
@@ -416,7 +464,6 @@ class Client(discord.Client):
     # ================= WELCOME =================
     async def on_member_join(self, member):
         channel = member.guild.get_channel(WELCOME_CHANNEL_ID)
-
         if channel:
             embed = discord.Embed(
                 title="🎉 WELCOME!",
@@ -425,7 +472,6 @@ class Client(discord.Client):
             )
             embed.set_thumbnail(url=member.display_avatar.url)
             embed.set_image(url="https://i.imgur.com/OfeFMXC.png")
-
             await channel.send(embed=embed)
 
         role = member.guild.get_role(AUTO_ROLE_ID)
@@ -441,7 +487,6 @@ class Client(discord.Client):
             pass
 
         rules_channel = member.guild.get_channel(RULES_CHANNEL_ID)
-
         if rules_channel:
             try:
                 embed = discord.Embed(
@@ -455,7 +500,6 @@ class Client(discord.Client):
                     color=discord.Color.blue()
                 )
                 embed.set_thumbnail(url=member.guild.icon.url if member.guild.icon else None)
-
                 await member.send(embed=embed)
             except:
                 print(f"Gagal kirim DM ke {member.name}")
@@ -463,7 +507,6 @@ class Client(discord.Client):
     # ================= GOODBYE =================
     async def on_member_remove(self, member):
         channel = member.guild.get_channel(GOODBYE_CHANNEL_ID)
-
         if channel:
             embed = discord.Embed(
                 title="👋 GOODBYE!",
@@ -472,9 +515,8 @@ class Client(discord.Client):
             )
             embed.set_thumbnail(url=member.display_avatar.url)
             embed.set_image(url="https://i.imgur.com/k3II9KX.jpeg")
-
             await channel.send(embed=embed)
-              
+
         try:
             dm_embed = discord.Embed(
                 title="Terima kasih sudah pernah jadi bagian dari kami 🤍",
@@ -487,19 +529,14 @@ class Client(discord.Client):
                 color=discord.Color.dark_blue()
             )
             dm_embed.set_footer(text="Salam dari komunitas DPNP")
-
             await member.send(embed=dm_embed)
-
         except discord.Forbidden:
-            # User menutup DM dari server
             print(f"Tidak bisa kirim DM ke {member.name}")
 
     # ================= Booster =================
     async def on_member_update(self, before, after):
-        # Seseorang baru saja boost
         if before.premium_since is None and after.premium_since is not None:
             channel = after.guild.get_channel(BOOST_CHANNEL_ID)
-
             if channel:
                 embed = discord.Embed(
                     title="🚀 SERVER BOOST!",
@@ -508,10 +545,8 @@ class Client(discord.Client):
                 )
                 embed.add_field(name="Total Boost Server", value=after.guild.premium_subscription_count)
                 embed.set_thumbnail(url=after.display_avatar.url)
-
                 await channel.send(embed=embed)
 
-            # 🎁 Kasih role Booster
             role = after.guild.get_role(BOOSTER_ROLE_ID)
             if role:
                 try:
@@ -519,27 +554,22 @@ class Client(discord.Client):
                 except discord.Forbidden:
                     print("Tidak punya izin kasih role booster")
 
-            # 💌 Kirim DM ke booster
             try:
                 await after.send(f"Terima kasih sudah boost {after.guild.name}! Kamu dapat role spesial 💜")
             except:
                 pass
 
-        # Server naik level boost
         if before.guild.premium_tier < after.guild.premium_tier:
             channel = after.guild.get_channel(BOOST_CHANNEL_ID)
             if channel:
                 await channel.send(
                     f"@everyone 🎉 Server naik ke **LEVEL {after.guild.premium_tier}** berkat para booster! Terima kasih 💜"
-              )
-
+                )
 
     # ================= COMMAND =================
     async def on_message(self, message):
         if message.author == self.user:
             return
-        
-        # Skip semua bot
         if message.author.bot:
             return
 
@@ -577,25 +607,21 @@ class Client(discord.Client):
             embed = discord.Embed(title="Music Queue", description=desc, color=discord.Color.orange())
             await message.channel.send(embed=embed)
             return
-        
+
         # ===== XP SYSTEM CHAT =====
         now = datetime.datetime.now().timestamp()
         last_time = last_message_time.get(message.author.id, 0)
-        
-        # Deteksi kata rahasia
+
         secret_word_detected = "bran baik dan ganteng" in message.content.lower()
         xp_multiplier = 2 if secret_word_detected else 1
 
         if now - last_time >= XP_COOLDOWN:
             last_message_time[message.author.id] = now
-
             xp_gain = random.randint(5, 15) * xp_multiplier
             leveled_up = self.add_xp(message.author, xp_gain)
-
             if leveled_up:
                 new_level = xp_data[str(message.author.id)]["level"]
                 channel = message.guild.get_channel(LEVEL_UP_CHANNEL_ID)
-
                 if channel:
                     embed = discord.Embed(
                         title="🎉 LEVEL UP!",
@@ -603,7 +629,6 @@ class Client(discord.Client):
                         color=discord.Color.gold()
                     )
                     await channel.send(embed=embed)
-
                 if new_level in LEVEL_ROLES:
                     role = message.guild.get_role(LEVEL_ROLES[new_level])
                     if role:
@@ -614,116 +639,80 @@ class Client(discord.Client):
 
         if msg == '!halo':
             await message.channel.send('Halo juga! 👋')
-        
         elif msg == '!pagi':
             await message.channel.send('morning jga udh sarapan blm')
-        
         elif msg == '!turu':
             await message.channel.send('tidur ya jaga kesehatan mu')
-
         elif msg == '!ping':
             await message.channel.send('Pong! 🏓')
-
         elif msg == '!among':
             await message.channel.send('@everyone  Ayo Among Us!')
-
         elif msg == '!roblox':
             await message.channel.send('@everyone  Langsung aja Roblox!')
-
         elif msg == '!yuka':
             await message.channel.send('hallo kak cantik gmn kabarnya')
-        
         elif msg == '!ryan':
             await message.channel.send('Hallo Ganteng')
-        
         elif msg == '!kiwi':
             await message.channel.send('Apeeeeeeeeee')
-        
         elif msg == '!ml':
             await message.channel.send('@everyone  Langsung aja ml yg mau ikut!')
-
         elif msg == '!gg':
             await message.channel.send('infokan mancing fish it')
-
         elif msg == '!brann':
             await message.channel.send('Hallo owner baik dan ganteng')
-        
         elif msg == '!king':
             await message.channel.send('diatas owner masih ada king')
-
         elif msg == '!maul':
             await message.channel.send('maul berak celana di sekolah')
-        
         elif msg == '!yeay':
             await message.channel.send('adik terbaik sedipienpi ')
-
         elif msg == '!wann':
             await message.channel.send('wann Login ada yang mau minta gendong tuh')
-
         elif msg == '!itik':
             await message.channel.send('info roblox/ml  brannn')
-
         elif msg == '!putra':
             await message.channel.send('ytta')
-
         elif msg == '!diyana':
             await message.channel.send('Apakabar anak anak absen dlu satu satu')
-        
         elif msg == '!bii':
             await message.channel.send('Hallo my Kisah 📖')
-        
         elif msg == '!melar':
             await message.channel.send('di sok sok an lu')
-        
         elif msg == '!caci':
             await message.channel.send('iri bilang boss')
-          
         elif msg == '!mile':
             await message.channel.send('Ketua gengster, bikin gemeter🫦🫦')
-        
         elif msg == '!wahyu':
             await message.channel.send('sehat sehat all, banyak olahraga')
-        
         elif msg == '!natan':
             await message.channel.send('jarvis apakan dlu le biar ga apa kali')
-        
         elif msg == '!amour':
             await message.channel.send('infokan among us gais')
-        
         elif msg == '!malam':
             await message.channel.send('@everyone good night guys, mimpi indah semoga sehat selalu,  mimpiin aku yaaa')
-        
         elif msg == '!rin':
             await message.channel.send('omakkkkk')
-        
         elif msg == '!jikan':
             await message.channel.send('p info voice yg girls')
-        
         elif msg == '!vann':
             await message.channel.send('pria ganteng idaman 😘😘😘')
-        
         elif msg == '!shera':
             await message.channel.send('inpokan by1 ml')
-        
         elif msg == '!karl':
             await message.channel.send('noo my kisah')
-            
-        
+
         elif msg.startswith('!profile'):
             member = message.mentions[0] if message.mentions else message.author
-
             roles = [role.mention for role in member.roles if role.name != "@everyone"]
             roles_text = ", ".join(roles) if roles else "Tidak punya role"
-
             embed = discord.Embed(
                 title=f"👤 Profil {member.name}",
                 color=member.color if member.color != discord.Color.default() else discord.Color.blue()
             )
-
             embed.set_thumbnail(url=member.display_avatar.url)
             level = xp_data.get(str(member.id), {}).get("level", 1)
             badge = BADGES.get(level, "Pemula")
-
             embed.add_field(name="🏅 Badge", value=badge, inline=False)
             embed.add_field(name="⭐ Level", value=level, inline=False)
             embed.add_field(name="🆔 User ID", value=member.id, inline=False)
@@ -731,7 +720,6 @@ class Client(discord.Client):
             embed.add_field(name="📅 Akun Dibuat", value=member.created_at.strftime("%d %B %Y"), inline=False)
             embed.add_field(name="📆 Gabung Server", value=member.joined_at.strftime("%d %B %Y"), inline=False)
             embed.add_field(name="🎭 Roles", value=roles_text, inline=False)
-
             await message.channel.send(embed=embed)
 
         elif msg.startswith('!kiss'):
@@ -742,10 +730,7 @@ class Client(discord.Client):
                     "https://media1.tenor.com/m/Fvwt33eN3hUAAAAC/anime-cute.gif",
                     "https://media1.tenor.com/m/iDQT9BjSSXsAAAAC/kimsoohyun-kimjiwon.gif"
                 ])
-                embed = discord.Embed(
-                    description=f"{message.author.mention} mencium {target.mention} 😘",
-                    color=discord.Color.pink()
-                )
+                embed = discord.Embed(description=f"{message.author.mention} mencium {target.mention} 😘", color=discord.Color.pink())
                 embed.set_image(url=gif_url)
                 await message.channel.send(embed=embed)
             else:
@@ -758,10 +743,7 @@ class Client(discord.Client):
                     "https://media1.tenor.com/m/bO1H2Zv_5doAAAAC/mai-mai-san.gif",
                     "https://media1.tenor.com/m/WYmal-WAnksAAAAd/yuzuki-mizusaka-nonoka-komiya.gif"
                 ])
-                embed = discord.Embed(
-                    description=f"{message.author.mention} menampar {target.mention} 🖐️",
-                    color=discord.Color.red()
-                )
+                embed = discord.Embed(description=f"{message.author.mention} menampar {target.mention} 🖐️", color=discord.Color.red())
                 embed.set_image(url=gif_url)
                 await message.channel.send(embed=embed)
             else:
@@ -771,10 +753,7 @@ class Client(discord.Client):
             if message.mentions:
                 target = message.mentions[0]
                 gif_url = "https://media1.tenor.com/m/G_IvONY8EFgAAAAC/aharen-san-anime-hug.gif"
-                embed = discord.Embed(
-                    description=f"{message.author.mention} memeluk {target.mention} 🤗",
-                    color=discord.Color.green()
-                )
+                embed = discord.Embed(description=f"{message.author.mention} memeluk {target.mention} 🤗", color=discord.Color.green())
                 embed.set_image(url=gif_url)
                 await message.channel.send(embed=embed)
             else:
@@ -784,10 +763,7 @@ class Client(discord.Client):
             if message.mentions:
                 target = message.mentions[0]
                 gif_url = "https://c.tenor.com/8YpRZ4H7dWkAAAAC/anime-bite.gif"
-                embed = discord.Embed(
-                    description=f"{message.author.mention} menggigit {target.mention} 😈",
-                    color=discord.Color.orange()
-                )
+                embed = discord.Embed(description=f"{message.author.mention} menggigit {target.mention} 😈", color=discord.Color.orange())
                 embed.set_image(url=gif_url)
                 await message.channel.send(embed=embed)
             else:
@@ -797,10 +773,7 @@ class Client(discord.Client):
             if message.mentions:
                 target = message.mentions[0]
                 gif_url = "https://c.tenor.com/LUqLUEvFZ8kAAAAC/anime-head-pat.gif"
-                embed = discord.Embed(
-                    description=f"{message.author.mention} menepuk kepala {target.mention} 🥰",
-                    color=discord.Color.blurple()
-                )
+                embed = discord.Embed(description=f"{message.author.mention} menepuk kepala {target.mention} 🥰", color=discord.Color.blurple())
                 embed.set_image(url=gif_url)
                 await message.channel.send(embed=embed)
             else:
@@ -813,10 +786,7 @@ class Client(discord.Client):
                     "https://media.tenor.com/HqHu-BqxJUEAAAAi/anime-xd.gif",
                     "https://media1.tenor.com/m/230mTazmYVYAAAAC/anime-anime-boy.gif"
                 ])
-                embed = discord.Embed(
-                    description=f"{message.author.mention} menyerang {target.mention} ⚔️",
-                    color=discord.Color.dark_red()
-                )
+                embed = discord.Embed(description=f"{message.author.mention} menyerang {target.mention} ⚔️", color=discord.Color.dark_red())
                 embed.set_image(url=gif_url)
                 await message.channel.send(embed=embed)
             else:
@@ -825,7 +795,6 @@ class Client(discord.Client):
         elif msg == '!daily':
             today = datetime.date.today()
             last_claim = daily_claims.get(message.author.id)
-
             if last_claim == today:
                 await message.channel.send("Kamu sudah ambil daily XP hari ini 🎁")
             else:
@@ -834,9 +803,7 @@ class Client(discord.Client):
                 await message.channel.send(f"🎁 Kamu dapat {DAILY_XP} XP hari ini!")
 
         elif msg == '!top':
-            # Sort semua user berdasarkan level (tertinggi) lalu XP (tertinggi)
             sorted_users = sorted(xp_data.items(), key=lambda x: (x[1]["level"], x[1]["xp"]), reverse=True)
-
             view = LeaderboardView(message.author.id, message.guild, sorted_users, per_page=10)
             sent_message = await message.channel.send(embed=view._make_embed(), view=view)
             view.message = sent_message
@@ -844,32 +811,24 @@ class Client(discord.Client):
         elif msg.startswith('!rank'):
             member = message.mentions[0] if message.mentions else message.author
             user_id = str(member.id)
-            
             if user_id not in xp_data:
                 await message.channel.send(f"{member.mention} belum punya data XP 📊")
                 return
-            
             data = xp_data[user_id]
             level = data["level"]
             current_xp = data["xp"]
             xp_needed = level * 100
-            
-            # Hitung progress bar
             progress_percent = int((current_xp / xp_needed) * 100) if xp_needed > 0 else 0
             filled = "█" * (progress_percent // 10)
             empty = "░" * (10 - (progress_percent // 10))
             progress_bar = f"{filled}{empty} {progress_percent}%"
-            
             badge = BADGES.get(level, "Pemula")
-            
-            # Hitung rank di leaderboard
             sorted_users = sorted(xp_data.items(), key=lambda x: (x[1]["level"], x[1]["xp"]), reverse=True)
             rank = 1
             for idx, (uid, udata) in enumerate(sorted_users, start=1):
                 if uid == user_id:
                     rank = idx
                     break
-            
             embed = discord.Embed(
                 title=f"📊 Rank {member.name}",
                 color=member.color if member.color != discord.Color.default() else discord.Color.blue()
@@ -880,18 +839,14 @@ class Client(discord.Client):
             embed.add_field(name="⭐ Level", value=level, inline=False)
             embed.add_field(name="✨ XP Progress", value=f"{current_xp} / {xp_needed} XP", inline=False)
             embed.add_field(name="📈 Progress Bar", value=progress_bar, inline=False)
-            
             await message.channel.send(embed=embed)
-
 
         # ===== Spam Detection =====
         now_ts = datetime.datetime.now().timestamp()
         dq = spam_records.setdefault(message.author.id, deque())
         dq.append(now_ts)
-        # hapus timestamp yang lebih tua dari window
         while dq and now_ts - dq[0] > SPAM_WINDOW:
             dq.popleft()
-
         if len(dq) >= SPAM_THRESHOLD:
             try:
                 await message.channel.send(f"Hey {message.author.mention}, tolong jangan spam dong 🙏, Berisik Ganggu gw lagi Drakoran")
@@ -907,12 +862,12 @@ intents.members = True
 intents.voice_states = True
 
 client = Client(intents=intents)
-# ===== SLASH COMMAND KIRIM PANEL ROLE =====
+
 @client.tree.command(name="rolepanel", description="Kirim panel ambil role")
 async def rolepanel(interaction: discord.Interaction):
     await interaction.response.send_message(
         "🎮 **Ambil Role Disini**\nKlik tombol di bawah untuk ambil atau hapus role kamu:",
         view=RolePanel()
     )
-client.run(TOKEN)
 
+client.run(TOKEN)
