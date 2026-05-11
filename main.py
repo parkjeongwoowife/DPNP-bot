@@ -85,10 +85,13 @@ def get_ydl_opts(output_template='%(id)s.%(ext)s'):
         'quiet': True,
         'noplaylist': True,
         'outtmpl': output_template,
-        # Hindari deteksi bot
-        'extractor_args': {'youtube': {'skip': ['dash', 'hls']}},
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['ios'],
+            }
+        },
         'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+            'User-Agent': 'com.google.ios.youtube/19.29.1 (iPhone16,2; U; CPU iOS 17_5_1 like Mac OS X;)',
         },
     }
     cookies_path = get_cookies_path()
