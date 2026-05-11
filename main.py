@@ -3,6 +3,7 @@ import random
 import json
 import os
 import datetime
+import shutil
 from collections import deque
 from config import TOKEN
 from discord import app_commands
@@ -63,6 +64,32 @@ def save_xp():
         json.dump(xp_data, f)
 
 # ===== HELPER: PATH COOKIES =====
+def get_ffmpeg_path():
+    """Cari ffmpeg di system PATH atau lokasi umum."""
+    # Cek PATH dulu
+    ffmpeg = shutil.which('ffmpeg')
+    if ffmpeg:
+        print(f'[FFmpeg] Ditemukan di: {ffmpeg}')
+        return ffmpeg
+    # Cek lokasi umum di Railway/Linux
+    candidates = [
+        '/usr/bin/ffmpeg',
+        '/usr/local/bin/ffmpeg',
+        '/nix/store/ffmpeg',
+    ]
+    for path in candidates:
+        if os.path.exists(path):
+            print(f'[FFmpeg] Ditemukan di: {path}')
+            return path
+    # Coba cari di /nix/store (Railway pakai Nix)
+    import glob
+    nix_matches = glob.glob('/nix/store/*/bin/ffmpeg')
+    if nix_matches:
+        print(f'[FFmpeg] Ditemukan di Nix: {nix_matches[0]}')
+        return nix_matches[0]
+    print('[FFmpeg] WARNING: ffmpeg tidak ditemukan!')
+    return 'ffmpeg'  # fallback ke PATH
+
 def get_cookies_path():
     """Cari cookies.txt di beberapa lokasi, return path yang ada."""
     candidates = [
@@ -254,7 +281,7 @@ class Client(discord.Client):
                 'options': '-vn -ar 48000 -ac 2 -b:a 128k'
             }
             audio_source = discord.FFmpegPCMAudio(
-                executable='ffmpeg',
+                executable=get_ffmpeg_path(),
                 source=next_track['filename'],
                 **ffmpeg_opts
             )
@@ -270,29 +297,26 @@ class Client(discord.Client):
             uploader = next_track.get("uploader", "")
             source = next_track.get("source", "SoundCloud")
 
-            # Format: Started playing Judul by Artist
+            # Format mirip Jockie Music
             if uploader and uploader.lower() not in title.lower():
-                display = f"**{title}** by **{uploader}**"
+                artist_text = f" by **{uploader}**"
             else:
-                display = f"**{title}**"
+                artist_text = ""
 
-            # Icon sesuai source
             if source == "YouTube":
-                icon = "<:youtube:1234>"
                 color = discord.Color.red()
-                prefix = "🔴"
+                icon_text = "🔴 YouTube"
             else:
-                icon = ""
                 color = discord.Color.from_rgb(255, 85, 0)
-                prefix = "🟠"
+                icon_text = "🟠 SoundCloud"
+
+            title_link = f"[{title}]({url})" if url else title
 
             embed = discord.Embed(
-                description=f"{prefix} Started playing {display}",
+                description=f"Started playing **{title_link}**{artist_text}",
                 color=color
             )
-            if url:
-                embed.description = f"{prefix} Started playing [{title}]({url})" + (f" by **{uploader}**" if uploader and uploader.lower() not in title.lower() else "")
-
+            embed.set_footer(text=f"Source: {icon_text}")
             await message_channel.send(embed=embed)
         else:
             self.now_playing[guild.id] = None
