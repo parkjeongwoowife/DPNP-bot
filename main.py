@@ -81,13 +81,13 @@ def get_cookies_path():
 def get_ydl_opts(output_template='%(id)s.%(ext)s'):
     """Return yt-dlp options dengan cookies jika tersedia."""
     opts = {
-        'format': 'bestaudio/best',
+        'format': 'bestaudio/best/worstaudio',
         'quiet': True,
         'noplaylist': True,
         'outtmpl': output_template,
         'extractor_args': {
             'youtube': {
-                'player_client': ['ios'],
+                'player_client': ['ios', 'web'],
             }
         },
         'http_headers': {
