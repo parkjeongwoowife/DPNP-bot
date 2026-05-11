@@ -204,6 +204,80 @@ class LeaderboardView(View):
         await interaction.response.edit_message(embed=self._make_embed(), view=self)
 
 class Client(discord.Client):
+            async def search_and_play(self, message, query):
+                # Cari lagu di YouTube pakai yt-dlp
+                import yt_dlp
+                ydl_opts = {
+                    'format': 'bestaudio/best',
+                    'quiet': True,
+                    'noplaylist': True,
+                    'default_search': 'ytsearch1',
+                    'outtmpl': 'song.%(ext)s',
+                }
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(query, download=True)
+                    if 'entries' in info:
+                        info = info['entries'][0]
+                    filename = ydl.prepare_filename(info)
+                # Join voice jika belum
+                if not message.author.voice:
+                    await message.channel.send("❌ Kamu harus join voice channel dulu!")
+                    return
+                channel = message.author.voice.channel
+                vc = message.guild.voice_client
+                if not vc:
+                    vc = await channel.connect()
+                if vc.is_playing():
+                    vc.stop()
+                vc.play(discord.FFmpegPCMAudio(executable="ffmpeg", source=filename))
+                await message.channel.send(f"▶️ Memutar: {info['title']}")
+        # ================= MUSIC BOT =================
+        async def join_voice(self, message):
+            if message.author.voice:
+                channel = message.author.voice.channel
+                await channel.connect()
+                await message.channel.send(f"✅ Bergabung ke voice channel: {channel.name}")
+            else:
+                await message.channel.send("❌ Kamu harus join voice channel dulu!")
+
+        async def leave_voice(self, message):
+            if message.guild.voice_client:
+                await message.guild.voice_client.disconnect()
+                await message.channel.send("❌ Bot keluar dari voice channel.")
+            else:
+                await message.channel.send("❌ Bot tidak sedang di voice channel.")
+
+        async def play_music(self, message, url):
+            if not message.author.voice:
+                await message.channel.send("❌ Kamu harus join voice channel dulu!")
+                return
+            channel = message.author.voice.channel
+            vc = message.guild.voice_client
+            if not vc:
+                vc = await channel.connect()
+            if vc.is_playing():
+                vc.stop()
+            # Download dan play audio dari YouTube
+            import youtube_dl
+            ydl_opts = {
+                'format': 'bestaudio/best',
+                'quiet': True,
+                'outtmpl': 'song.%(ext)s',
+                'noplaylist': True,
+            }
+            with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+                filename = ydl.prepare_filename(info)
+            vc.play(discord.FFmpegPCMAudio(executable="ffmpeg", source=filename))
+            await message.channel.send(f"▶️ Memutar: {info['title']}")
+
+        async def stop_music(self, message):
+            vc = message.guild.voice_client
+            if vc and vc.is_playing():
+                vc.stop()
+                await message.channel.send("⏹️ Musik dihentikan.")
+            else:
+                await message.channel.send("❌ Tidak ada musik yang sedang diputar.")
     def __init__(self, *, intents):
         super().__init__(intents=intents)
         self.tree = app_commands.CommandTree(self)
@@ -408,6 +482,25 @@ class Client(discord.Client):
             return
 
         msg = message.content.lower()
+
+        # ===== MUSIC COMMANDS =====
+        if msg.startswith('!join'):
+            await self.join_voice(message)
+            return
+        elif msg.startswith('!leave'):
+            await self.leave_voice(message)
+            return
+        elif msg.startswith('!play '):
+            url = message.content.split(' ', 1)[1]
+            await self.play_music(message, url)
+            return
+        elif msg.startswith('!stop'):
+            await self.stop_music(message)
+            return
+        elif msg.startswith('!d '):
+            query = message.content.split(' ', 1)[1]
+            await self.search_and_play(message, query)
+            return
         
         # ===== XP SYSTEM CHAT =====
         now = datetime.datetime.now().timestamp()
