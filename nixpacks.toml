@@ -1,2 +1,2 @@
-[packages]
-ffmpeg = "*"
+[phases.setup]
+nixPkgs = ["python313", "ffmpeg"]
