@@ -277,35 +277,66 @@ class Client(discord.Client):
         """Coba YouTube dulu, kalau gagal fallback ke SoundCloud."""
         import yt_dlp
 
-        # === Coba YouTube dulu ===
-        ydl_opts_yt = get_ydl_opts(output_template='%(id)s.%(ext)s')
+        # === Coba YouTube dulu (tanpa cookies supaya error bisa di-catch) ===
+        ydl_opts_yt = {
+            'format': 'bestaudio/best',
+            'quiet': True,
+            'noplaylist': True,
+            'outtmpl': '%(id)s.%(ext)s',
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['ios', 'web'],
+                }
+            },
+            'http_headers': {
+                'User-Agent': 'com.google.ios.youtube/19.29.1 (iPhone16,2; U; CPU iOS 17_5_1 like Mac OS X;)',
+            },
+        }
         if not is_url:
             ydl_opts_yt['default_search'] = 'ytsearch1'
 
+        # Coba dengan cookies dulu
+        cookies_path = get_cookies_path()
+        if cookies_path:
+            ydl_opts_yt['cookiefile'] = cookies_path
+
+        yt_success = False
         try:
             with yt_dlp.YoutubeDL(ydl_opts_yt) as ydl:
                 info = ydl.extract_info(query, download=True)
+                if info is None:
+                    raise Exception("YouTube return None")
                 if 'entries' in info:
                     info = info['entries'][0]
+                if info is None:
+                    raise Exception("YouTube entries kosong")
                 filename = ydl.prepare_filename(info)
                 print(f"[Music] YouTube OK: {info['title']}")
+                yt_success = True
                 return info, filename, 'YouTube'
         except Exception as e:
-            print(f"[Music] YouTube gagal: {e} — mencoba SoundCloud...")
+            err_str = str(e)
+            print(f"[Music] YouTube gagal: {err_str[:200]} — mencoba SoundCloud...")
 
         # === Fallback SoundCloud ===
-        # Kalau input URL YouTube, ambil judulnya dulu buat cari di SC
         search_query = query
+        # Kalau query adalah URL YouTube, coba ambil judulnya untuk dicari di SC
         if is_url and ('youtube.com' in query or 'youtu.be' in query):
-            # Coba ambil judul dari URL tanpa download
             try:
-                ydl_opts_info = get_ydl_opts()
-                ydl_opts_info['skip_download'] = True
-                with yt_dlp.YoutubeDL(ydl_opts_info) as ydl:
+                ydl_info_opts = {
+                    'quiet': True,
+                    'skip_download': True,
+                    'extractor_args': {'youtube': {'player_client': ['ios']}},
+                }
+                if cookies_path:
+                    ydl_info_opts['cookiefile'] = cookies_path
+                with yt_dlp.YoutubeDL(ydl_info_opts) as ydl:
                     info_only = ydl.extract_info(query, download=False)
-                    search_query = info_only.get('title', query)
+                    if info_only:
+                        search_query = info_only.get('title', query)
+                        print(f"[Music] Judul dari YT URL: {search_query}")
             except:
-                search_query = query  # pakai URL asli kalau gagal
+                search_query = query
 
         ydl_opts_sc = {
             'format': 'bestaudio/best',
@@ -318,14 +349,18 @@ class Client(discord.Client):
         try:
             with yt_dlp.YoutubeDL(ydl_opts_sc) as ydl:
                 info = ydl.extract_info(search_query, download=True)
+                if info is None:
+                    raise Exception("SoundCloud return None")
                 if 'entries' in info:
                     info = info['entries'][0]
+                if info is None:
+                    raise Exception("SoundCloud entries kosong")
                 filename = ydl.prepare_filename(info)
                 print(f"[Music] SoundCloud OK: {info['title']}")
                 return info, filename, 'SoundCloud'
         except Exception as e:
             print(f"[Music] SoundCloud juga gagal: {e}")
-            raise Exception(f"YouTube & SoundCloud gagal. Coba lagu lain.")
+            raise Exception("YouTube & SoundCloud gagal. Coba lagu lain.")
 
     # ===== SEARCH & PLAY (!d command) =====
     async def search_and_play(self, message, query):
