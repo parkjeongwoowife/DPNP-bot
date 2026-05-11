@@ -277,8 +277,8 @@ class Client(discord.Client):
                 vc = await channel.connect()
 
             ffmpeg_opts = {
-                'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
-                'options': '-vn -ar 48000 -ac 2 -b:a 128k'
+                'before_options': '',
+                'options': '-vn'
             }
             audio_source = discord.FFmpegPCMAudio(
                 executable=get_ffmpeg_path(),
@@ -425,7 +425,7 @@ class Client(discord.Client):
             await status_msg.edit(content=f"❌ Gagal memutar lagu: {str(e)[:400]}")
             return
 
-        await status_msg.edit(content=f"✅ Ditemukan di **{source}**: {info['title']}")
+        await status_msg.delete()
 
         channel = message.author.voice.channel
         queue = self.music_queues.setdefault(message.guild.id, [])
@@ -457,7 +457,7 @@ class Client(discord.Client):
             await status_msg.edit(content=f"❌ Gagal memutar lagu: {str(e)[:400]}")
             return
 
-        await status_msg.edit(content=f"✅ Ditemukan di **{source}**: {info['title']}")
+        await status_msg.delete()
 
         channel = message.author.voice.channel
         queue = self.music_queues.setdefault(message.guild.id, [])
