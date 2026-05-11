@@ -204,80 +204,125 @@ class LeaderboardView(View):
         await interaction.response.edit_message(embed=self._make_embed(), view=self)
 
 class Client(discord.Client):
-            async def search_and_play(self, message, query):
-                # Cari lagu di YouTube pakai yt-dlp
-                import yt_dlp
-                ydl_opts = {
-                    'format': 'bestaudio/best',
-                    'quiet': True,
-                    'noplaylist': True,
-                    'default_search': 'ytsearch1',
-                    'outtmpl': 'song.%(ext)s',
-                }
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    info = ydl.extract_info(query, download=True)
-                    if 'entries' in info:
-                        info = info['entries'][0]
-                    filename = ydl.prepare_filename(info)
-                # Join voice jika belum
-                if not message.author.voice:
-                    await message.channel.send("❌ Kamu harus join voice channel dulu!")
-                    return
-                channel = message.author.voice.channel
-                vc = message.guild.voice_client
-                if not vc:
-                    vc = await channel.connect()
-                if vc.is_playing():
-                    vc.stop()
-                vc.play(discord.FFmpegPCMAudio(executable="ffmpeg", source=filename))
-                await message.channel.send(f"▶️ Memutar: {info['title']}")
-        # ================= MUSIC BOT =================
-        async def join_voice(self, message):
-            if message.author.voice:
-                channel = message.author.voice.channel
-                await channel.connect()
-                await message.channel.send(f"✅ Bergabung ke voice channel: {channel.name}")
-            else:
-                await message.channel.send("❌ Kamu harus join voice channel dulu!")
+    # ====== MUSIC QUEUE SYSTEM ======
+    music_queues = {}
+    now_playing = {}
 
-        async def leave_voice(self, message):
-            if message.guild.voice_client:
-                await message.guild.voice_client.disconnect()
-                await message.channel.send("❌ Bot keluar dari voice channel.")
-            else:
-                await message.channel.send("❌ Bot tidak sedang di voice channel.")
-
-        async def play_music(self, message, url):
-            if not message.author.voice:
-                await message.channel.send("❌ Kamu harus join voice channel dulu!")
-                return
-            channel = message.author.voice.channel
-            vc = message.guild.voice_client
+    async def play_next(self, guild, channel, message_channel):
+        queue = self.music_queues.get(guild.id, [])
+        if queue:
+            next_track = queue.pop(0)
+            self.music_queues[guild.id] = queue
+            vc = guild.voice_client
             if not vc:
                 vc = await channel.connect()
-            if vc.is_playing():
-                vc.stop()
-            # Download dan play audio dari YouTube
-            import youtube_dl
-            ydl_opts = {
-                'format': 'bestaudio/best',
-                'quiet': True,
-                'outtmpl': 'song.%(ext)s',
-                'noplaylist': True,
-            }
-            with youtube_dl.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-                filename = ydl.prepare_filename(info)
-            vc.play(discord.FFmpegPCMAudio(executable="ffmpeg", source=filename))
-            await message.channel.send(f"▶️ Memutar: {info['title']}")
+            vc.play(discord.FFmpegPCMAudio(executable="ffmpeg", source=next_track['filename']), after=lambda e: self.loop.create_task(self.play_next(guild, channel, message_channel)))
+            self.now_playing[guild.id] = next_track
+            embed = discord.Embed(title="▶️ Now Playing", description=f"{next_track['title']}", color=discord.Color.green())
+            await message_channel.send(embed=embed)
+        else:
+            self.now_playing[guild.id] = None
 
-        async def stop_music(self, message):
-            vc = message.guild.voice_client
-            if vc and vc.is_playing():
-                vc.stop()
-                await message.channel.send("⏹️ Musik dihentikan.")
-            else:
-                await message.channel.send("❌ Tidak ada musik yang sedang diputar.")
+    async def search_and_play(self, message, query):
+        import yt_dlp
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'quiet': True,
+            'noplaylist': True,
+            'default_search': 'ytsearch1',
+            'outtmpl': 'song.%(ext)s',
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(query, download=True)
+            if 'entries' in info:
+                info = info['entries'][0]
+            filename = ydl.prepare_filename(info)
+        if not message.author.voice:
+            await message.channel.send("❌ Kamu harus join voice channel dulu!")
+            return
+        channel = message.author.voice.channel
+        queue = self.music_queues.setdefault(message.guild.id, [])
+        queue.append({'title': info['title'], 'filename': filename})
+        self.music_queues[message.guild.id] = queue
+        if not message.guild.voice_client or not message.guild.voice_client.is_playing():
+            await self.play_next(message.guild, channel, message.channel)
+        else:
+            await message.channel.send(f"➕ Ditambahkan ke antrian: {info['title']}")
+
+    # ================= MUSIC BOT =================
+    async def join_voice(self, message):
+        if message.author.voice:
+            channel = message.author.voice.channel
+            await channel.connect()
+            await message.channel.send(f"✅ Bergabung ke voice channel: {channel.name}")
+        else:
+            await message.channel.send("❌ Kamu harus join voice channel dulu!")
+
+    async def leave_voice(self, message):
+        if message.guild.voice_client:
+            await message.guild.voice_client.disconnect()
+            await message.channel.send("❌ Bot keluar dari voice channel.")
+        else:
+            await message.channel.send("❌ Bot tidak sedang di voice channel.")
+
+    async def play_music(self, message, url):
+        import yt_dlp
+        if not message.author.voice:
+            await message.channel.send("❌ Kamu harus join voice channel dulu!")
+            return
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'quiet': True,
+            'outtmpl': 'song.%(ext)s',
+            'noplaylist': True,
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            filename = ydl.prepare_filename(info)
+        channel = message.author.voice.channel
+        queue = self.music_queues.setdefault(message.guild.id, [])
+        queue.append({'title': info['title'], 'filename': filename})
+        self.music_queues[message.guild.id] = queue
+        if not message.guild.voice_client or not message.guild.voice_client.is_playing():
+            await self.play_next(message.guild, channel, message.channel)
+        else:
+            await message.channel.send(f"➕ Ditambahkan ke antrian: {info['title']}")
+
+    async def stop_music(self, message):
+        vc = message.guild.voice_client
+        if vc and vc.is_playing():
+            vc.stop()
+            self.music_queues[message.guild.id] = []
+            await message.channel.send("⏹️ Musik dihentikan dan antrian dikosongkan.")
+        else:
+            await message.channel.send("❌ Tidak ada musik yang sedang diputar.")
+        # ===== SLASH COMMAND UNTUK HELP DAN QUEUE =====
+        async def setup_hook(self):
+            await self.tree.sync()
+            @self.tree.command(name="help", description="Lihat semua fitur DPNP Bot")
+            async def help_command(interaction: discord.Interaction):
+                embed = discord.Embed(title="DPNP Bot Help", color=discord.Color.blurple())
+                embed.add_field(name="Musik", value="!play [link_youtube]\n!d [judul lagu]\n!stop\n!join\n!leave\n/queue", inline=False)
+                embed.add_field(name="XP & Level", value="!top\n!rank\n!profile\n!daily", inline=False)
+                embed.add_field(name="Role", value="/rolepanel (ambil role)", inline=False)
+                embed.add_field(name="Fun", value="!kiss, !slap, !hug, !bite, !pat, !kill", inline=False)
+                embed.set_footer(text="DPNP Bot by wuwa5741-art")
+                await interaction.response.send_message(embed=embed, ephemeral=True)
+
+            @self.tree.command(name="queue", description="Lihat antrian lagu saat ini")
+            async def queue_command(interaction: discord.Interaction):
+                queue = self.music_queues.get(interaction.guild_id, [])
+                now = self.now_playing.get(interaction.guild_id)
+                desc = ""
+                if now:
+                    desc += f"▶️ Now Playing: {now['title']}\n"
+                if queue:
+                    for idx, track in enumerate(queue, 1):
+                        desc += f"{idx}. {track['title']}\n"
+                else:
+                    desc += "(Antrian kosong)"
+                embed = discord.Embed(title="Music Queue", description=desc, color=discord.Color.orange())
+                await interaction.response.send_message(embed=embed, ephemeral=False)
     def __init__(self, *, intents):
         super().__init__(intents=intents)
         self.tree = app_commands.CommandTree(self)
@@ -500,6 +545,20 @@ class Client(discord.Client):
         elif msg.startswith('!d '):
             query = message.content.split(' ', 1)[1]
             await self.search_and_play(message, query)
+            return
+        elif msg.startswith('!queue'):
+            queue = self.music_queues.get(message.guild.id, [])
+            now = self.now_playing.get(message.guild.id)
+            desc = ""
+            if now:
+                desc += f"▶️ Now Playing: {now['title']}\n"
+            if queue:
+                for idx, track in enumerate(queue, 1):
+                    desc += f"{idx}. {track['title']}\n"
+            else:
+                desc += "(Antrian kosong)"
+            embed = discord.Embed(title="Music Queue", description=desc, color=discord.Color.orange())
+            await message.channel.send(embed=embed)
             return
         
         # ===== XP SYSTEM CHAT =====
