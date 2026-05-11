@@ -234,6 +234,7 @@ class Client(discord.Client):
 
     async def search_and_play(self, message, query):
         import yt_dlp
+        import os
         ydl_opts = {
             'format': 'bestaudio/best',
             'quiet': True,
@@ -241,11 +242,18 @@ class Client(discord.Client):
             'default_search': 'ytsearch1',
             'outtmpl': 'song.%(ext)s',
         }
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(query, download=True)
-            if 'entries' in info:
-                info = info['entries'][0]
-            filename = ydl.prepare_filename(info)
+        # Tambahkan cookies.txt jika ada
+        if os.path.exists('cookies.txt'):
+            ydl_opts['cookiefile'] = 'cookies.txt'
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(query, download=True)
+                if 'entries' in info:
+                    info = info['entries'][0]
+                filename = ydl.prepare_filename(info)
+        except Exception as e:
+            await message.channel.send(f"❌ Gagal memutar lagu: {str(e)[:400]}")
+            return
         if not message.author.voice:
             await message.channel.send("❌ Kamu harus join voice channel dulu!")
             return
