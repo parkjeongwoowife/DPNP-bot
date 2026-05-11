@@ -128,6 +128,72 @@ def get_ydl_opts(output_template='%(id)s.%(ext)s'):
 
 # ================= FIXED BUTTON ROLE =================
 
+# ================= MUSIC CONTROLS VIEW =================
+class MusicControlView(View):
+    def __init__(self, client, guild, channel):
+        super().__init__(timeout=None)
+        self.client = client
+        self.guild = guild
+        self.channel = channel
+
+    @discord.ui.button(emoji="⏭️", label="Skip", style=discord.ButtonStyle.primary)
+    async def skip_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        vc = self.guild.voice_client
+        now = self.client.now_playing.get(self.guild.id)
+        if vc and vc.is_playing():
+            title = now["title"] if now else "lagu ini"
+            vc.stop()
+            await interaction.response.send_message(f"⏭️ Skipped: **{title}**", ephemeral=True)
+        else:
+            await interaction.response.send_message("❌ Tidak ada musik yang sedang diputar.", ephemeral=True)
+
+    @discord.ui.button(emoji="⏸️", label="Pause", style=discord.ButtonStyle.secondary)
+    async def pause_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        vc = self.guild.voice_client
+        if vc and vc.is_playing():
+            vc.pause()
+            button.label = "Resume"
+            button.emoji = "▶️"
+            button.style = discord.ButtonStyle.success
+            await interaction.response.edit_message(view=self)
+        elif vc and vc.is_paused():
+            vc.resume()
+            button.label = "Pause"
+            button.emoji = "⏸️"
+            button.style = discord.ButtonStyle.secondary
+            await interaction.response.edit_message(view=self)
+        else:
+            await interaction.response.send_message("❌ Tidak ada musik.", ephemeral=True)
+
+    @discord.ui.button(emoji="⏹️", label="Stop", style=discord.ButtonStyle.danger)
+    async def stop_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        vc = self.guild.voice_client
+        if vc:
+            self.client.music_queues[self.guild.id] = []
+            self.client.now_playing[self.guild.id] = None
+            vc.stop()
+            for item in self.children:
+                item.disabled = True
+            await interaction.response.edit_message(view=self)
+            await interaction.followup.send("⏹️ Musik dihentikan.", ephemeral=True)
+        else:
+            await interaction.response.send_message("❌ Bot tidak di voice channel.", ephemeral=True)
+
+    @discord.ui.button(emoji="👋", label="Leave", style=discord.ButtonStyle.danger)
+    async def leave_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        vc = self.guild.voice_client
+        if vc:
+            self.client.music_queues[self.guild.id] = []
+            self.client.now_playing[self.guild.id] = None
+            await vc.disconnect()
+            for item in self.children:
+                item.disabled = True
+            await interaction.response.edit_message(view=self)
+            await interaction.followup.send("👋 Bot keluar dari voice channel.", ephemeral=True)
+        else:
+            await interaction.response.send_message("❌ Bot tidak di voice channel.", ephemeral=True)
+
+
 class RoleButton(discord.ui.Button):
     def __init__(self, label: str, role_id: int, custom_id: str):
         super().__init__(
@@ -317,7 +383,8 @@ class Client(discord.Client):
                 color=color
             )
             embed.set_footer(text=f"Source: {icon_text}")
-            await message_channel.send(embed=embed)
+            view = MusicControlView(self, guild, channel)
+            await message_channel.send(embed=embed, view=view)
         else:
             self.now_playing[guild.id] = None
 
