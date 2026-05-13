@@ -4,16 +4,9 @@ import json
 import os
 import datetime
 import shutil
+
 from collections import deque
 from config import TOKEN
-
-# Untuk fitur lirik
-import lyricsgenius
-GENIUS_TOKEN = os.getenv("GENIUS_TOKEN")
-if GENIUS_TOKEN:
-    genius = lyricsgenius.Genius(GENIUS_TOKEN, skip_non_songs=True, excluded_terms=["(Remix)", "(Live)"])
-else:
-    genius = None
 from discord import app_commands
 from discord.ui import View, Button
 
