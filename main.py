@@ -359,61 +359,59 @@ class Client(discord.Client):
                 source=next_track['filename'],
                 **ffmpeg_opts
             )
-                async def search_and_play(self, message, query):
-                    import yt_dlp
-                    import os
-                    import requests
-                    # Deteksi link Spotify
-                    if "open.spotify.com/track" in query:
-                        try:
-                            # Ambil track ID
-                            track_id = query.split("/")[-1].split("?")[0]
-                            # Ambil metadata dari oEmbed (tanpa API key)
-                            r = requests.get(f"https://open.spotify.com/oembed?url=https://open.spotify.com/track/{track_id}")
-                            data = r.json()
-                            title = data['title']
-                            artist = data['author_name']
-                            search_query = f"{title} {artist}"
-                            await message.channel.send(f"🔎 Mencari lagu Spotify di YouTube: {search_query}")
-                        except Exception as e:
-                            await message.channel.send(f"❌ Gagal ambil info dari Spotify: {str(e)[:200]}")
-                            return
-                    else:
-                        search_query = query
 
-                    ydl_opts = {
-                        'format': 'bestaudio/best',
-                        'quiet': True,
-                        'noplaylist': True,
-                        'default_search': 'ytsearch1',
-                        'outtmpl': 'song.%(ext)s',
-                    }
-                    # Tambahkan cookies.txt jika ada
-                    if os.path.exists('cookies.txt'):
-                        ydl_opts['cookiefile'] = 'cookies.txt'
-                    try:
-                        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                            info = ydl.extract_info(search_query, download=True)
-                            if 'entries' in info:
-                                info = info['entries'][0]
-                            filename = ydl.prepare_filename(info)
-                    except Exception as e:
-                        await message.channel.send(f"❌ Gagal memutar lagu: {str(e)[:400]}")
-                        return
-                    if not message.author.voice:
-                        await message.channel.send("❌ Kamu harus join voice channel dulu!")
-                        return
-                    channel = message.author.voice.channel
-                    queue = self.music_queues.setdefault(message.guild.id, [])
-                    queue.append({'title': info['title'], 'filename': filename, 'webpage_url': info.get('webpage_url'), 'uploader': info.get('uploader', 'YouTube')})
-                    self.music_queues[message.guild.id] = queue
-                    if not message.guild.voice_client or not message.guild.voice_client.is_playing():
-                        await self.play_next(message.guild, channel, message.channel)
-                    else:
-                        await message.channel.send(f"➕ Ditambahkan ke antrian: {info['title']}")
-            await message_channel.send(embed=embed, view=view)
+    async def search_and_play(self, message, query):
+        import yt_dlp
+        import os
+        import requests
+        # Deteksi link Spotify
+        if "open.spotify.com/track" in query:
+            try:
+                # Ambil track ID
+                track_id = query.split("/")[-1].split("?")[0]
+                # Ambil metadata dari oEmbed (tanpa API key)
+                r = requests.get(f"https://open.spotify.com/oembed?url=https://open.spotify.com/track/{track_id}")
+                data = r.json()
+                title = data['title']
+                artist = data['author_name']
+                search_query = f"{title} {artist}"
+                await message.channel.send(f"🔎 Mencari lagu Spotify di YouTube: {search_query}")
+            except Exception as e:
+                await message.channel.send(f"❌ Gagal ambil info dari Spotify: {str(e)[:200]}")
+                return
         else:
-            self.now_playing[guild.id] = None
+            search_query = query
+
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'quiet': True,
+            'noplaylist': True,
+            'default_search': 'ytsearch1',
+            'outtmpl': 'song.%(ext)s',
+        }
+        # Tambahkan cookies.txt jika ada
+        if os.path.exists('cookies.txt'):
+            ydl_opts['cookiefile'] = 'cookies.txt'
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(search_query, download=True)
+                if 'entries' in info:
+                    info = info['entries'][0]
+                filename = ydl.prepare_filename(info)
+        except Exception as e:
+            await message.channel.send(f"❌ Gagal memutar lagu: {str(e)[:400]}")
+            return
+        if not message.author.voice:
+            await message.channel.send("❌ Kamu harus join voice channel dulu!")
+            return
+        channel = message.author.voice.channel
+        queue = self.music_queues.setdefault(message.guild.id, [])
+        queue.append({'title': info['title'], 'filename': filename, 'webpage_url': info.get('webpage_url'), 'uploader': info.get('uploader', 'YouTube')})
+        self.music_queues[message.guild.id] = queue
+        if not message.guild.voice_client or not message.guild.voice_client.is_playing():
+            await self.play_next(message.guild, channel, message.channel)
+        else:
+            await message.channel.send(f"➕ Ditambahkan ke antrian: {info['title']}")
 
     # ===== HELPER: DOWNLOAD DENGAN FALLBACK =====
     async def download_track(self, query, is_url=False):
@@ -983,6 +981,11 @@ class Client(discord.Client):
             await message.channel.send('inpokan by1 ml')
         elif msg == '!karl':
             await message.channel.send('noo my kisah')
+        elif msg == '!loping':
+            await message.channel.send('karawang nih boss')
+        elif msg == '!mojil':
+            await message.channel.send('apasiii')
+        
 
         elif msg.startswith('!profile'):
             member = message.mentions[0] if message.mentions else message.author
