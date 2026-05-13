@@ -979,7 +979,7 @@ class Client(discord.Client):
         elif msg == '!mojil':
             await message.channel.send('apasiii')
         elif msg == '!arul':
-            await message.channel.send('info nomor hp cewek')
+            await message.channel.send('karl suka ak dia bilang sendiri')
         elif msg == '!iloy':
             await message.channel.send('sayang brannn')
         elif msg == '!sogili':
