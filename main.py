@@ -931,7 +931,7 @@ class Client(discord.Client):
         elif msg == '!ml':
             await message.channel.send('@everyone  Langsung aja ml yg mau ikut!')
         elif msg == '!gg':
-            await message.channel.send('infokan mancing fish it')
+            await message.channel.send('ga suka ara ara, sukanya rara')
         elif msg == '!brann':
             await message.channel.send('Hallo owner baik dan ganteng')
         elif msg == '!king':
@@ -981,7 +981,7 @@ class Client(discord.Client):
         elif msg == '!arul':
             await message.channel.send('karl suka ak dia bilang sendiri')
         elif msg == '!iloy':
-            await message.channel.send('sayang brannn')
+            await message.channel.send('Iloy sayang Go Youn Jung')
         elif msg == '!sogili':
             await message.channel.send('mancing guys')
         
