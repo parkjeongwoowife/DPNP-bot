@@ -6,6 +6,14 @@ import datetime
 import shutil
 from collections import deque
 from config import TOKEN
+
+# Untuk fitur lirik
+import lyricsgenius
+GENIUS_TOKEN = os.getenv("GENIUS_TOKEN")
+if GENIUS_TOKEN:
+    genius = lyricsgenius.Genius(GENIUS_TOKEN, skip_non_songs=True, excluded_terms=["(Remix)", "(Live)"])
+else:
+    genius = None
 from discord import app_commands
 from discord.ui import View, Button
 
@@ -351,39 +359,58 @@ class Client(discord.Client):
                 source=next_track['filename'],
                 **ffmpeg_opts
             )
-            audio_source = discord.PCMVolumeTransformer(audio_source, volume=1.0)
-            vc.play(
-                audio_source,
-                after=lambda e: self.loop.create_task(self.play_next(guild, channel, message_channel))
-            )
-            self.now_playing[guild.id] = next_track
+                async def search_and_play(self, message, query):
+                    import yt_dlp
+                    import os
+                    import requests
+                    # Deteksi link Spotify
+                    if "open.spotify.com/track" in query:
+                        try:
+                            # Ambil track ID
+                            track_id = query.split("/")[-1].split("?")[0]
+                            # Ambil metadata dari oEmbed (tanpa API key)
+                            r = requests.get(f"https://open.spotify.com/oembed?url=https://open.spotify.com/track/{track_id}")
+                            data = r.json()
+                            title = data['title']
+                            artist = data['author_name']
+                            search_query = f"{title} {artist}"
+                            await message.channel.send(f"🔎 Mencari lagu Spotify di YouTube: {search_query}")
+                        except Exception as e:
+                            await message.channel.send(f"❌ Gagal ambil info dari Spotify: {str(e)[:200]}")
+                            return
+                    else:
+                        search_query = query
 
-            title = next_track.get("title", "Unknown")
-            url = next_track.get("webpage_url", None)
-            uploader = next_track.get("uploader", "")
-            source = next_track.get("source", "SoundCloud")
-
-            # Format mirip Jockie Music
-            if uploader and uploader.lower() not in title.lower():
-                artist_text = f" by **{uploader}**"
-            else:
-                artist_text = ""
-
-            if source == "YouTube":
-                color = discord.Color.red()
-                icon_text = "🔴 YouTube"
-            else:
-                color = discord.Color.from_rgb(255, 85, 0)
-                icon_text = "🟠 SoundCloud"
-
-            title_link = f"[{title}]({url})" if url else title
-
-            embed = discord.Embed(
-                description=f"Started playing **{title_link}**{artist_text}",
-                color=color
-            )
-            embed.set_footer(text=f"Source: {icon_text}")
-            view = MusicControlView(self, guild, channel)
+                    ydl_opts = {
+                        'format': 'bestaudio/best',
+                        'quiet': True,
+                        'noplaylist': True,
+                        'default_search': 'ytsearch1',
+                        'outtmpl': 'song.%(ext)s',
+                    }
+                    # Tambahkan cookies.txt jika ada
+                    if os.path.exists('cookies.txt'):
+                        ydl_opts['cookiefile'] = 'cookies.txt'
+                    try:
+                        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                            info = ydl.extract_info(search_query, download=True)
+                            if 'entries' in info:
+                                info = info['entries'][0]
+                            filename = ydl.prepare_filename(info)
+                    except Exception as e:
+                        await message.channel.send(f"❌ Gagal memutar lagu: {str(e)[:400]}")
+                        return
+                    if not message.author.voice:
+                        await message.channel.send("❌ Kamu harus join voice channel dulu!")
+                        return
+                    channel = message.author.voice.channel
+                    queue = self.music_queues.setdefault(message.guild.id, [])
+                    queue.append({'title': info['title'], 'filename': filename, 'webpage_url': info.get('webpage_url'), 'uploader': info.get('uploader', 'YouTube')})
+                    self.music_queues[message.guild.id] = queue
+                    if not message.guild.voice_client or not message.guild.voice_client.is_playing():
+                        await self.play_next(message.guild, channel, message.channel)
+                    else:
+                        await message.channel.send(f"➕ Ditambahkan ke antrian: {info['title']}")
             await message_channel.send(embed=embed, view=view)
         else:
             self.now_playing[guild.id] = None
@@ -880,6 +907,28 @@ class Client(discord.Client):
             await message.channel.send('Pong! 🏓')
         elif msg == '!among':
             await message.channel.send('@everyone  Ayo Among Us!')
+        
+        # ===== LIRIK COMMAND =====
+        elif msg.startswith('!lirik '):
+            if not genius:
+                await message.channel.send('❌ Fitur lirik belum aktif. Admin perlu set GENIUS_TOKEN di .env')
+                return
+            query = message.content.split(' ', 1)[1]
+            status_msg = await message.channel.send(f'🔎 Mencari lirik: **{query}** ...')
+            try:
+                song = genius.search_song(query)
+                if song and song.lyrics:
+                    # Bagi lirik jika terlalu panjang
+                    lyrics = song.lyrics
+                    if len(lyrics) > 1800:
+                        await status_msg.edit(content=f'**{song.title}** by **{song.artist}**\n\n{lyrics[:1800]}... (lirik dipotong)')
+                    else:
+                        await status_msg.edit(content=f'**{song.title}** by **{song.artist}**\n\n{lyrics}')
+                else:
+                    await status_msg.edit(content='❌ Lirik tidak ditemukan.')
+            except Exception as e:
+                await status_msg.edit(content=f'❌ Error ambil lirik: {str(e)[:300]}')
+            return
         elif msg == '!roblox':
             await message.channel.send('@everyone  Langsung aja Roblox!')
         elif msg == '!yuka':
