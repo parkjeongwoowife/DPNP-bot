@@ -953,7 +953,7 @@ class Client(discord.Client):
         elif msg == '!melar':
             await message.channel.send('di sok sok an lu')
         elif msg == '!caci':
-            await message.channel.send('iri bilang boss')
+            await message.channel.send('sayang moja')
         elif msg == '!mile':
             await message.channel.send('Ketua gengster, bikin gemeter🫦🫦')
         elif msg == '!wahyu':
