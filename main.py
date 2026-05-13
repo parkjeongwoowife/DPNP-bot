@@ -967,7 +967,7 @@ class Client(discord.Client):
         elif msg == '!rin':
             await message.channel.send('omakkkkk')
         elif msg == '!jikan':
-            await message.channel.send('p info voice yg girls')
+            await message.channel.send('info sparing mole')
         elif msg == '!vann':
             await message.channel.send('pria ganteng idaman 😘😘😘')
         elif msg == '!shera':
@@ -978,6 +978,12 @@ class Client(discord.Client):
             await message.channel.send('karawang nih boss')
         elif msg == '!mojil':
             await message.channel.send('apasiii')
+        elif msg == '!arul':
+            await message.channel.send('info nomor hp cewek')
+        elif msg == '!iloy':
+            await message.channel.send('sayang brannn')
+        elif msg == '!sogili':
+            await message.channel.send('mancing guys')
         
 
         elif msg.startswith('!profile'):
