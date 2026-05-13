@@ -961,7 +961,7 @@ class Client(discord.Client):
         elif msg == '!natan':
             await message.channel.send('jarvis apakan dlu le biar ga apa kali')
         elif msg == '!amour':
-            await message.channel.send('infokan among us gais')
+            await message.channel.send('karl milik amour')
         elif msg == '!malam':
             await message.channel.send('@everyone good night guys, mimpi indah semoga sehat selalu,  mimpiin aku yaaa')
         elif msg == '!rin':
