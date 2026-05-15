@@ -984,7 +984,14 @@ class Client(discord.Client):
             await message.channel.send('Iloy sayang Go Youn Jung')
         elif msg == '!sogili':
             await message.channel.send('mancing guys')
-        
+        elif msg == '!araa':
+            await message.channel.send('adik ka bii')
+        elif msg == '!zhaa':
+            await message.channel.send('ZHA ANAK TEKNIK')
+        elif msg == '!xeno':
+            await message.channel.send('xeno pemutus ws')
+        elif msg == '!alex':
+            await message.channel.send('handsome man in this server')
 
         elif msg.startswith('!profile'):
             member = message.mentions[0] if message.mentions else message.author
