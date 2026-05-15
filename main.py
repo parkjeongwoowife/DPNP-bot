@@ -992,6 +992,8 @@ class Client(discord.Client):
             await message.channel.send('xeno pemutus ws')
         elif msg == '!alex':
             await message.channel.send('handsome man in this server')
+        elif msg == '!henn':
+            await message.channel.send('ceo mbg')
 
         elif msg.startswith('!profile'):
             member = message.mentions[0] if message.mentions else message.author
