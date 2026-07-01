@@ -228,6 +228,9 @@ class RolePanel(View):
         self.add_item(RoleButton("Among Us", 1449603295046930443, "role_among"))
         self.add_item(RoleButton("Roblox", 1449603377150562354, "role_roblox"))
         self.add_item(RoleButton("Free Fire", 1502158964857638924, "role_ff"))
+        self.add_item(RoleButton("Nobar", 1521857351651561595, "role_nobar"))
+        self.add_item(RoleButton("Steam Gaming", 1521860590526664844, "role_steam_gaming"))
+        self.add_item(RoleButton("Valorant", 1521865058102149131, "role_valorant"))
 
 
 class LeaderboardView(View):
