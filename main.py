@@ -11,6 +11,7 @@ from discord import app_commands
 from discord.ui import View, Button
 
 WELCOME_CHANNEL_ID = 1417152242817044550
+JOIN_GREET_CHANNEL_ID = 1402253424296198175
 GOODBYE_CHANNEL_ID = 1417152314476859422
 BOOST_CHANNEL_ID = 1417152381291860118
 BOOSTER_ROLE_ID = 1437740399786459247    
@@ -19,15 +20,15 @@ RULES_CHANNEL_ID = 1459140957932093652
 LEVEL_UP_CHANNEL_ID = 1467701484102619257
 
 LEVEL_ROLES = {
-    5: 1467711658934927461,
-    10: 1467711802870599946,
-    20: 1467711915177541847,
-    30: 1467712000367792330,
-    40: 1467712170119921908,
-    60: 1467712247987179581,
-    75: 1467712305323184172,
-    85: 1467712397807587452,
-    100: 1467712463435989068
+    5: 1521777404849160243,
+    10: 1521777570138558494,
+    20: 1521777608444870828,
+    30: 1521777645178716300,
+    40: 1521777656889081876,
+    60: 1521777827861499974,
+    75: 1521777951870287882,
+    85: 1521778690143293450,
+    100: 1521778014533193748
 }
 
 BADGES = {
@@ -44,6 +45,7 @@ BADGES = {
 
 XP_FILE = "xp_data.json"
 DAILY_XP = 50
+genius = None
 
 voice_join_time = {}
 daily_claims = {}
@@ -715,6 +717,13 @@ class Client(discord.Client):
             embed.set_image(url="https://i.imgur.com/OfeFMXC.png")
             await channel.send(embed=embed)
 
+        greet_channel = member.guild.get_channel(JOIN_GREET_CHANNEL_ID)
+        if greet_channel:
+            await greet_channel.send(
+                f"Halo {member.mention}, selamat datang di sini ya. Semoga betah dan nyaman di server kita. "
+                f"Kalau mau mulai kenalan pelan-pelan juga nggak apa-apa, santai aja. Kalau bingung, tinggal cek rules atau tanya ke teman-teman di sini."
+            )
+
         role = member.guild.get_role(AUTO_ROLE_ID)
         if role:
             try:
@@ -1162,5 +1171,8 @@ async def rolepanel(interaction: discord.Interaction):
         "🎮 **Ambil Role Disini**\nKlik tombol di bawah untuk ambil atau hapus role kamu:",
         view=RolePanel()
     )
+
+if not TOKEN:
+    raise RuntimeError("TOKEN belum di-set. Isi environment variable TOKEN di Railway.")
 
 client.run(TOKEN)
