@@ -17,6 +17,7 @@ BOOST_CHANNEL_ID = 1417152381291860118
 BOOSTER_ROLE_ID = 1437740399786459247    
 AUTO_ROLE_ID = 1438899323336130802
 RULES_CHANNEL_ID = 1459140957932093652
+TAKE_ROLE_CHANNEL_ID = 1417152449650626693
 LEVEL_UP_CHANNEL_ID = 1467701484102619257
 
 LEVEL_ROLES = {
@@ -717,11 +718,15 @@ class Client(discord.Client):
             embed.set_image(url="https://i.imgur.com/OfeFMXC.png")
             await channel.send(embed=embed)
 
+        rules_channel = member.guild.get_channel(RULES_CHANNEL_ID)
+        take_role_channel = member.guild.get_channel(TAKE_ROLE_CHANNEL_ID)
+        rules_mention = rules_channel.mention if rules_channel else 'rules'
+        take_role_mention = take_role_channel.mention if take_role_channel else 'take role'
+
         greet_channel = member.guild.get_channel(JOIN_GREET_CHANNEL_ID)
         if greet_channel:
             await greet_channel.send(
-                f"Halo {member.mention}, selamat datang di sini ya. Semoga betah dan nyaman di server kita. "
-                f"Kalau mau mulai kenalan pelan-pelan juga nggak apa-apa, santai aja. Kalau bingung, tinggal cek rules atau tanya ke teman-teman di sini."
+                f"Halo {member.mention}, selamat datang! Cek {rules_mention} dan ambil role di {take_role_mention} ya."
             )
 
         role = member.guild.get_role(AUTO_ROLE_ID)
@@ -736,16 +741,14 @@ class Client(discord.Client):
         except:
             pass
 
-        rules_channel = member.guild.get_channel(RULES_CHANNEL_ID)
         if rules_channel:
             try:
                 embed = discord.Embed(
                     title=f"Selamat datang di {member.guild.name} 🎉",
                     description=(
-                        f"Halo {member.name}! Senang kamu bergabung 💖\n\n"
-                        f"📜 Sebelum mulai, wajib baca rules server ya:\n"
-                        f"👉 {rules_channel.mention}\n\n"
-                        f"Semoga betah dan have fun! di Dpnp 🎮✨"
+                        f"Halo {member.name}, selamat datang!\n"
+                        f"Baca {rules_mention} dulu, lalu ambil role di {take_role_mention}.\n"
+                        f"Semoga betah di sini."
                     ),
                     color=discord.Color.blue()
                 )
