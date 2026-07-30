@@ -19,6 +19,8 @@ AUTO_ROLE_ID = 1438899323336130802
 RULES_CHANNEL_ID = 1459140957932093652
 TAKE_ROLE_CHANNEL_ID = 1417152449650626693
 LEVEL_UP_CHANNEL_ID = 1467701484102619257
+PRINCESS_ROLE_ID = 1417156113232826450
+PRINCE_ROLE_ID = 1417156158518464594
 
 LEVEL_ROLES = {
     5: 1521777404849160243,
@@ -231,6 +233,33 @@ class RolePanel(View):
         self.add_item(RoleButton("Nobar", 1521857351651561595, "role_nobar"))
         self.add_item(RoleButton("Steam Gaming", 1521860590526664844, "role_steam_gaming"))
         self.add_item(RoleButton("Valorant", 1521865058102149131, "role_valorant"))
+
+
+class PrincessInfoButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(
+            label="Princess",
+            style=discord.ButtonStyle.primary,
+            custom_id="rolepanel2_princess_info"
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        embed = discord.Embed(
+            title="Verifikasi Princess",
+            description=(
+                "Untuk menghindari penipuan, role Princess harus diverifikasi dulu ke admin atau mods.\n"
+                "Pesan ini hanya bisa kamu lihat."
+            ),
+            color=discord.Color.pink()
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+class RolePanel2(View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.add_item(RoleButton("Prince", PRINCE_ROLE_ID, "role_prince"))
+        self.add_item(PrincessInfoButton())
 
 
 class LeaderboardView(View):
@@ -1013,8 +1042,11 @@ class Client(discord.Client):
             await message.channel.send('orang sibuk jangan diganggu')
         elif msg == '!hazel':
             await message.channel.send('Halo Perempuan Cantik dan Manis')
-        elif msg == '!kajjel':
-            await message.channel.send('Princess disini hadir')
+        elif msg == '!kajell':
+            await message.channel.send('Hallo dengan Princess disini👋🏻')
+        elif msg == '!kai':
+            await message.channel.send('Halo halo bandung')
+
 
 
         elif msg.startswith('!profile'):
@@ -1169,6 +1201,26 @@ async def rolepanel(interaction: discord.Interaction):
         "🎮 **Ambil Role Disini**\nKlik tombol di bawah untuk ambil atau hapus role kamu:",
         view=RolePanel()
     )
+
+
+@client.tree.command(name="rolepanel2", description="Kirim panel info role princess")
+async def rolepanel2(interaction: discord.Interaction):
+    embed = discord.Embed(
+        title="Role Panel 2 - Verif Gender",
+        description="Panel ini untuk verifikasi gender. Klik Prince untuk ambil role, dan Princess untuk lihat info verifikasi.",
+        color=discord.Color.pink()
+    )
+    embed.add_field(
+        name="Prince",
+        value="Klik tombol untuk ambil atau hapus role Prince.",
+        inline=False
+    )
+    embed.add_field(
+        name="Princess",
+        value="Klik tombol untuk melihat info verifikasi Princess.",
+        inline=False
+    )
+    await interaction.response.send_message(embed=embed, view=RolePanel2())
 
 if not TOKEN:
     raise RuntimeError("TOKEN belum di-set. Isi environment variable TOKEN di Railway.")
