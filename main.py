@@ -1011,6 +1011,10 @@ class Client(discord.Client):
             await message.channel.send('ceo mbg')
         elif msg == '!milaa':
             await message.channel.send('orang sibuk jangan diganggu')
+        elif msg == '!hazel':
+            await message.channel.send('Halo Perempuan Cantik dan Manis')
+        elif msg == '!kajjel':
+            await message.channel.send('Princess disini hadir')
 
 
         elif msg.startswith('!profile'):
@@ -1151,21 +1155,6 @@ class Client(discord.Client):
             embed.add_field(name="✨ XP Progress", value=f"{current_xp} / {xp_needed} XP", inline=False)
             embed.add_field(name="📈 Progress Bar", value=progress_bar, inline=False)
             await message.channel.send(embed=embed)
-
-        # ===== Spam Detection =====
-        now_ts = datetime.datetime.now().timestamp()
-        dq = spam_records.setdefault(message.author.id, deque())
-        dq.append(now_ts)
-        while dq and now_ts - dq[0] > SPAM_WINDOW:
-            dq.popleft()
-        if len(dq) >= SPAM_THRESHOLD:
-            try:
-                await message.channel.send(f"Hey {message.author.mention}, tolong jangan spam dong 🙏, Berisik Ganggu gw lagi Drakoran")
-            except:
-                pass
-            dq.clear()
-            return
-
 
 intents = discord.Intents.default()
 intents.message_content = True
