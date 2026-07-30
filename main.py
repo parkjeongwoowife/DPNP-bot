@@ -27,6 +27,16 @@ ROBLOX_ROLE_ID = 1449603377150562354
 FREE_FIRE_ROLE_ID = 1502158964857638924
 VALORANT_ROLE_ID = 1521865058102149131
 
+REGIONAL_ROLES = [
+    ("BALI", 1532525127995228291, "🏖️"),
+    ("JAWA", 1532525196924289024, "🗺️"),
+    ("KALIMANTAN", 1532525310531211454, "🏕️"),
+    ("PAPUA", 1532525895821037649, "🌋"),
+    ("SULAWESI", 1532525394429743345, "🛣️"),
+    ("SUMATRA", 1532525469671358646, "🏜️"),
+]
+REGIONAL_ROLE_IDS = [role_id for _, role_id, _ in REGIONAL_ROLES]
+
 ZODIAC_PANEL_IMAGE_URL = os.getenv("ZODIAC_PANEL_IMAGE_URL", "").strip()
 ZODIAC_ROLES = [
     ("Aquarius", 1532514717623648366, "♒"),
@@ -50,6 +60,14 @@ def role_mention(guild: discord.Guild | None, role_id: int, fallback_name: str) 
         return fallback_name
     role = guild.get_role(role_id)
     return role.mention if role else fallback_name
+
+
+def remove_other_roles(guild: discord.Guild | None, member: discord.Member, role_ids: list[int], selected_role_id: int):
+    if guild is None:
+        return []
+    roles = [guild.get_role(role_id) for role_id in role_ids]
+    roles = [role for role in roles if role is not None]
+    return [role for role in roles if role.id != selected_role_id and role in member.roles]
 
 LEVEL_ROLES = {
     5: 1521777404849160243,
@@ -336,6 +354,53 @@ class ZodiacRolePanel(View):
     def __init__(self):
         super().__init__(timeout=None)
         self.add_item(ZodiacRoleSelect())
+
+
+class RegionalRoleSelect(discord.ui.Select):
+    def __init__(self):
+        options = [
+            discord.SelectOption(label=name, value=str(role_id), emoji=emoji)
+            for name, role_id, emoji in REGIONAL_ROLES
+        ]
+        super().__init__(
+            placeholder="Pilih satu role regional...",
+            min_values=1,
+            max_values=1,
+            options=options,
+            custom_id="regional_role_select"
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        guild = interaction.guild
+        member = interaction.user
+
+        if guild is None:
+            await interaction.response.send_message("Panel ini hanya bisa dipakai di server.", ephemeral=True)
+            return
+
+        selected_role_id = int(self.values[0])
+        selected_role = guild.get_role(selected_role_id)
+        if selected_role is None:
+            await interaction.response.send_message("Role regional tidak ditemukan.", ephemeral=True)
+            return
+
+        roles_to_remove = remove_other_roles(guild, member, REGIONAL_ROLE_IDS, selected_role_id)
+        if roles_to_remove:
+            await member.remove_roles(*roles_to_remove)
+
+        if selected_role in member.roles:
+            message = f"Kamu sudah punya role **{selected_role.name}**. Role regional lain sudah disesuaikan."
+        else:
+            await member.add_roles(selected_role)
+            message = f"✅ Role **{selected_role.name}** berhasil diberikan!"
+
+        await interaction.response.send_message(message, ephemeral=True)
+
+
+class RegionalRolePanel(View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.add_item(RegionalRoleSelect())
 
 
 class LeaderboardView(View):
@@ -733,7 +798,7 @@ class Client(discord.Client):
             embed = discord.Embed(title="DPNP Bot Help", color=discord.Color.blurple())
             embed.add_field(name="Musik", value="!play [link_youtube]\n!d [judul lagu]\n!stop\n!join\n!leave\n!queue\n/queue", inline=False)
             embed.add_field(name="XP & Level", value="!top\n!rank\n!profile\n!daily", inline=False)
-            embed.add_field(name="Role", value="/rolepanel (ambil role)\n/rolepanel3 (zodiak)", inline=False)
+            embed.add_field(name="Role", value="/rolepanel (ambil role)\n/rolepanel3 (zodiak)\n/rolepanel4 (regional)", inline=False)
             embed.add_field(name="Fun", value="!kiss, !slap, !hug, !bite, !pat, !kill", inline=False)
             embed.set_footer(text="DPNP Bot by wuwa5741-art")
             await interaction.response.send_message(embed=embed, ephemeral=True)
@@ -767,6 +832,8 @@ class Client(discord.Client):
             print("Persistent RolePanel loaded")
             self.add_view(ZodiacRolePanel())
             print("Persistent ZodiacRolePanel loaded")
+            self.add_view(RegionalRolePanel())
+            print("Persistent RegionalRolePanel loaded")
         except Exception as e:
             print("Gagal load RolePanel:", e)
 
@@ -1315,6 +1382,16 @@ async def rolepanel3(interaction: discord.Interaction):
     if ZODIAC_PANEL_IMAGE_URL:
         embed.set_image(url=ZODIAC_PANEL_IMAGE_URL)
     await interaction.response.send_message(embed=embed, view=ZodiacRolePanel())
+
+
+@client.tree.command(name="rolepanel4", description="Kirim panel role regional")
+async def rolepanel4(interaction: discord.Interaction):
+    embed = discord.Embed(
+        title="DPNP SERVER - REGIONAL ROLES",
+        description="Pilih satu role regional dari menu di bawah.",
+        color=discord.Color.green()
+    )
+    await interaction.response.send_message(embed=embed, view=RegionalRolePanel())
 
 if not TOKEN:
     raise RuntimeError("TOKEN belum di-set. Isi environment variable TOKEN di Railway.")
