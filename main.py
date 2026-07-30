@@ -245,11 +245,8 @@ class PrincessInfoButton(discord.ui.Button):
 
     async def callback(self, interaction: discord.Interaction):
         embed = discord.Embed(
-            title="Verifikasi Princess",
-            description=(
-                "Untuk menghindari penipuan, role Princess harus diverifikasi dulu ke admin atau mods.\n"
-                "Pesan ini hanya bisa kamu lihat."
-            ),
+            title="Info Princess",
+            description="Role Princess perlu verif ke admin/mod.",
             color=discord.Color.pink()
         )
         await interaction.response.send_message(embed=embed, ephemeral=True)
@@ -1206,18 +1203,18 @@ async def rolepanel(interaction: discord.Interaction):
 @client.tree.command(name="rolepanel2", description="Kirim panel info role princess")
 async def rolepanel2(interaction: discord.Interaction):
     embed = discord.Embed(
-        title="Role Panel 2 - Verif Gender",
-        description="Panel ini untuk verifikasi gender. Klik Prince untuk ambil role, dan Princess untuk lihat info verifikasi.",
+        title="Verif Gender",
+        description="Klik tombol di bawah untuk role terkait.",
         color=discord.Color.pink()
     )
     embed.add_field(
         name="Prince",
-        value="Klik tombol untuk ambil atau hapus role Prince.",
+        value="Ambil atau hapus role Prince.",
         inline=False
     )
     embed.add_field(
         name="Princess",
-        value="Klik tombol untuk melihat info verifikasi Princess.",
+        value="Lihat info verif Princess.",
         inline=False
     )
     await interaction.response.send_message(embed=embed, view=RolePanel2())
