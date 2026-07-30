@@ -21,6 +21,35 @@ TAKE_ROLE_CHANNEL_ID = 1417152449650626693
 LEVEL_UP_CHANNEL_ID = 1467701484102619257
 PRINCESS_ROLE_ID = 1417156113232826450
 PRINCE_ROLE_ID = 1417156158518464594
+MOBILE_LEGENDS_ROLE_ID = 1449602863687794789
+AMONG_US_ROLE_ID = 1449603295046930443
+ROBLOX_ROLE_ID = 1449603377150562354
+FREE_FIRE_ROLE_ID = 1502158964857638924
+VALORANT_ROLE_ID = 1521865058102149131
+
+ZODIAC_PANEL_IMAGE_URL = os.getenv("ZODIAC_PANEL_IMAGE_URL", "").strip()
+ZODIAC_ROLES = [
+    ("Aquarius", 1532514717623648366, "♒"),
+    ("Aries", 1532514788750655679, "♈"),
+    ("Cancer", 1532514841334382752, "♋"),
+    ("Capricorn", 1532514902378549328, "♑"),
+    ("Gemini", 1532515009416925264, "♊"),
+    ("Leo", 1532515040652165340, "♌"),
+    ("Libra", 1532515100424929382, "♎"),
+    ("Pisces", 1532515143819333843, "♓"),
+    ("Sagitarius", 1532515243127738488, "♐"),
+    ("Scorpio", 1532515310010236948, "♏"),
+    ("Taurus", 1532515369569222676, "♉"),
+    ("Virgo", 1532515408223928473, "♍"),
+]
+ZODIAC_ROLE_IDS = [role_id for _, role_id, _ in ZODIAC_ROLES]
+
+
+def role_mention(guild: discord.Guild | None, role_id: int, fallback_name: str) -> str:
+    if guild is None:
+        return fallback_name
+    role = guild.get_role(role_id)
+    return role.mention if role else fallback_name
 
 LEVEL_ROLES = {
     5: 1521777404849160243,
@@ -257,6 +286,56 @@ class RolePanel2(View):
         super().__init__(timeout=None)
         self.add_item(RoleButton("Prince", PRINCE_ROLE_ID, "role_prince"))
         self.add_item(PrincessInfoButton())
+
+
+class ZodiacRoleSelect(discord.ui.Select):
+    def __init__(self):
+        options = [
+            discord.SelectOption(label=name, value=str(role_id), emoji=emoji)
+            for name, role_id, emoji in ZODIAC_ROLES
+        ]
+        super().__init__(
+            placeholder="Pilih satu role zodiak...",
+            min_values=1,
+            max_values=1,
+            options=options,
+            custom_id="zodiac_role_select"
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        guild = interaction.guild
+        member = interaction.user
+
+        if guild is None:
+            await interaction.response.send_message("Panel ini hanya bisa dipakai di server.", ephemeral=True)
+            return
+
+        selected_role_id = int(self.values[0])
+        selected_role = guild.get_role(selected_role_id)
+        if selected_role is None:
+            await interaction.response.send_message("Role zodiak tidak ditemukan.", ephemeral=True)
+            return
+
+        zodiac_roles = [guild.get_role(role_id) for role_id in ZODIAC_ROLE_IDS]
+        zodiac_roles = [role for role in zodiac_roles if role is not None]
+
+        roles_to_remove = [role for role in zodiac_roles if role.id != selected_role_id and role in member.roles]
+        if roles_to_remove:
+            await member.remove_roles(*roles_to_remove)
+
+        if selected_role in member.roles:
+            message = f"Kamu sudah punya role **{selected_role.name}**. Role zodiak lain sudah disesuaikan."
+        else:
+            await member.add_roles(selected_role)
+            message = f"✅ Role **{selected_role.name}** berhasil diberikan!"
+
+        await interaction.response.send_message(message, ephemeral=True)
+
+
+class ZodiacRolePanel(View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.add_item(ZodiacRoleSelect())
 
 
 class LeaderboardView(View):
@@ -654,7 +733,7 @@ class Client(discord.Client):
             embed = discord.Embed(title="DPNP Bot Help", color=discord.Color.blurple())
             embed.add_field(name="Musik", value="!play [link_youtube]\n!d [judul lagu]\n!stop\n!join\n!leave\n!queue\n/queue", inline=False)
             embed.add_field(name="XP & Level", value="!top\n!rank\n!profile\n!daily", inline=False)
-            embed.add_field(name="Role", value="/rolepanel (ambil role)", inline=False)
+            embed.add_field(name="Role", value="/rolepanel (ambil role)\n/rolepanel3 (zodiak)", inline=False)
             embed.add_field(name="Fun", value="!kiss, !slap, !hug, !bite, !pat, !kill", inline=False)
             embed.set_footer(text="DPNP Bot by wuwa5741-art")
             await interaction.response.send_message(embed=embed, ephemeral=True)
@@ -686,6 +765,8 @@ class Client(discord.Client):
         try:
             self.add_view(RolePanel())
             print("Persistent RolePanel loaded")
+            self.add_view(ZodiacRolePanel())
+            print("Persistent ZodiacRolePanel loaded")
         except Exception as e:
             print("Gagal load RolePanel:", e)
 
@@ -938,7 +1019,7 @@ class Client(discord.Client):
         elif msg == '!ping':
             await message.channel.send('Pong! 🏓')
         elif msg == '!among':
-            await message.channel.send('@everyone  Ayo Among Us!')
+            await message.channel.send(f"{role_mention(message.guild, AMONG_US_ROLE_ID, 'Among Us')} Ayo Among Us!")
         
         # ===== LIRIK COMMAND =====
         elif msg.startswith('!lirik '):
@@ -962,7 +1043,11 @@ class Client(discord.Client):
                 await status_msg.edit(content=f'❌ Error ambil lirik: {str(e)[:300]}')
             return
         elif msg == '!roblox':
-            await message.channel.send('@everyone  Langsung aja Roblox!')
+            await message.channel.send(f"{role_mention(message.guild, ROBLOX_ROLE_ID, 'Roblox')} Langsung aja Roblox!")
+        elif msg == '!epep':
+            await message.channel.send(f"{role_mention(message.guild, FREE_FIRE_ROLE_ID, 'Free Fire')} Langsung aja Free Fire yang mau ikut!")
+        elif msg == '!valo':
+            await message.channel.send(f"{role_mention(message.guild, VALORANT_ROLE_ID, 'Valorant')} Langsung aja Valorant yang mau ikut!")
         elif msg == '!yuka':
             await message.channel.send('hallo kak cantik gmn kabarnya')
         elif msg == '!ryan':
@@ -970,7 +1055,7 @@ class Client(discord.Client):
         elif msg == '!kiwi':
             await message.channel.send('Apeeeeeeeeee')
         elif msg == '!ml':
-            await message.channel.send('@everyone  Langsung aja ml yg mau ikut!')
+            await message.channel.send(f"{role_mention(message.guild, MOBILE_LEGENDS_ROLE_ID, 'Mobile Legends')} Langsung aja ml yg mau ikut!")
         elif msg == '!gg':
             await message.channel.send('ga suka ara ara, sukanya rara')
         elif msg == '!brann':
@@ -1218,6 +1303,18 @@ async def rolepanel2(interaction: discord.Interaction):
         inline=False
     )
     await interaction.response.send_message(embed=embed, view=RolePanel2())
+
+
+@client.tree.command(name="rolepanel3", description="Kirim panel role zodiak")
+async def rolepanel3(interaction: discord.Interaction):
+    embed = discord.Embed(
+        title="DPNP SERVER - ZODIAC ROLES",
+        description="Pilih satu role zodiak dari menu di bawah.",
+        color=discord.Color.blurple()
+    )
+    if ZODIAC_PANEL_IMAGE_URL:
+        embed.set_image(url=ZODIAC_PANEL_IMAGE_URL)
+    await interaction.response.send_message(embed=embed, view=ZodiacRolePanel())
 
 if not TOKEN:
     raise RuntimeError("TOKEN belum di-set. Isi environment variable TOKEN di Railway.")
