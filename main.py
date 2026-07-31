@@ -41,7 +41,8 @@ ZODIAC_PANEL_IMAGE_URL = os.getenv("ZODIAC_PANEL_IMAGE_URL", "").strip()
 REGIONAL_PANEL_IMAGE_URL = os.getenv("REGIONAL_PANEL_IMAGE_URL", "").strip()
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ZODIAC_PANEL_IMAGE_PATH = os.path.join(BASE_DIR, "dpnpzodiak.png")
-REGIONAL_PANEL_IMAGE_PATH = os.path.join(BASE_DIR, "reginaldpnp2.png")
+REGIONAL_PANEL_IMAGE_PATH = os.path.join(BASE_DIR, "reginoal 3.png")
+GENDER_PANEL_IMAGE_PATH = os.path.join(BASE_DIR, "gender.png")
 ZODIAC_ROLES = [
     ("Aquarius", 1532514717623648366, "♒"),
     ("Aries", 1532514788750655679, "♈"),
@@ -1375,22 +1376,22 @@ async def rolepanel(interaction: discord.Interaction):
 
 @client.tree.command(name="rolepanel2", description="Kirim panel info role princess")
 async def rolepanel2(interaction: discord.Interaction):
-    embed = discord.Embed(
+    gender_file, gender_image_url = load_role_panel_image(GENDER_PANEL_IMAGE_PATH, "gender.png")
+    embed = make_role_panel_embed(
         title="Verif Gender",
-        description="Klik tombol di bawah untuk role terkait.",
-        color=discord.Color.pink()
+        description=(
+            "Klik tombol sesuai yang ingin anda pilih\n\n"
+            "🤵 Role gentelman menandakan bahwa anda adalah pria di server ini\n\n"
+            "👸 Role ladies menandakan bahwa anda adalah perempuan di server ini\n\n"
+            "Note: Untuk Role Ladies sendiri anda bisa menghubungi @The Aristocracy untuk melakukan verifikasi bahwa nyaa memang benar benar ladies silahkan create tiket melalui #❓︱help untuk terhubung dengan administrator server."
+        ),
+        color=discord.Color.pink(),
+        image_url=gender_image_url,
     )
-    embed.add_field(
-        name="Prince",
-        value="Ambil atau hapus role Prince.",
-        inline=False
-    )
-    embed.add_field(
-        name="Princess",
-        value="Lihat info verif Princess.",
-        inline=False
-    )
-    await interaction.response.send_message(embed=embed, view=RolePanel2())
+    if gender_file:
+        await interaction.response.send_message(embed=embed, view=RolePanel2(), file=gender_file)
+    else:
+        await interaction.response.send_message(embed=embed, view=RolePanel2())
 
 
 @client.tree.command(name="rolepanel3", description="Kirim panel role zodiak")
