@@ -41,7 +41,7 @@ ZODIAC_PANEL_IMAGE_URL = os.getenv("ZODIAC_PANEL_IMAGE_URL", "").strip()
 REGIONAL_PANEL_IMAGE_URL = os.getenv("REGIONAL_PANEL_IMAGE_URL", "").strip()
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ZODIAC_PANEL_IMAGE_PATH = os.path.join(BASE_DIR, "dpnpzodiak.png")
-REGIONAL_PANEL_IMAGE_PATH = os.path.join(BASE_DIR, "dpnpregiona;l.png")
+REGIONAL_PANEL_IMAGE_PATH = os.path.join(BASE_DIR, "reginaldpnp2.png")
 ZODIAC_ROLES = [
     ("Aquarius", 1532514717623648366, "♒"),
     ("Aries", 1532514788750655679, "♈"),
