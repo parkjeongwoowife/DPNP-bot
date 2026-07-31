@@ -38,6 +38,10 @@ REGIONAL_ROLES = [
 REGIONAL_ROLE_IDS = [role_id for _, role_id, _ in REGIONAL_ROLES]
 
 ZODIAC_PANEL_IMAGE_URL = os.getenv("ZODIAC_PANEL_IMAGE_URL", "").strip()
+REGIONAL_PANEL_IMAGE_URL = os.getenv("REGIONAL_PANEL_IMAGE_URL", "").strip()
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ZODIAC_PANEL_IMAGE_PATH = os.path.join(BASE_DIR, "dpnpzodiak.png")
+REGIONAL_PANEL_IMAGE_PATH = os.path.join(BASE_DIR, "dpnpregiona;l.png")
 ZODIAC_ROLES = [
     ("Aquarius", 1532514717623648366, "♒"),
     ("Aries", 1532514788750655679, "♈"),
@@ -401,6 +405,23 @@ class RegionalRolePanel(View):
     def __init__(self):
         super().__init__(timeout=None)
         self.add_item(RegionalRoleSelect())
+
+
+def make_role_panel_embed(title: str, description: str, color: discord.Color, image_url: str = "") -> discord.Embed:
+    embed = discord.Embed(
+        title=title,
+        description=description,
+        color=color
+    )
+    if image_url:
+        embed.set_image(url=image_url)
+    return embed
+
+
+def load_role_panel_image(image_path: str, attachment_name: str):
+    if os.path.exists(image_path):
+        return discord.File(image_path, filename=attachment_name), f"attachment://{attachment_name}"
+    return None, ""
 
 
 class LeaderboardView(View):
@@ -1374,24 +1395,36 @@ async def rolepanel2(interaction: discord.Interaction):
 
 @client.tree.command(name="rolepanel3", description="Kirim panel role zodiak")
 async def rolepanel3(interaction: discord.Interaction):
-    embed = discord.Embed(
+    zodiac_file, zodiac_image_url = load_role_panel_image(ZODIAC_PANEL_IMAGE_PATH, "dpnpzodiak.png")
+    if not zodiac_image_url:
+        zodiac_image_url = ZODIAC_PANEL_IMAGE_URL
+    embed = make_role_panel_embed(
         title="DPNP SERVER - ZODIAC ROLES",
         description="Pilih satu role zodiak dari menu di bawah.",
-        color=discord.Color.blurple()
+        color=discord.Color.blurple(),
+        image_url=zodiac_image_url,
     )
-    if ZODIAC_PANEL_IMAGE_URL:
-        embed.set_image(url=ZODIAC_PANEL_IMAGE_URL)
-    await interaction.response.send_message(embed=embed, view=ZodiacRolePanel())
+    if zodiac_file:
+        await interaction.response.send_message(embed=embed, view=ZodiacRolePanel(), file=zodiac_file)
+    else:
+        await interaction.response.send_message(embed=embed, view=ZodiacRolePanel())
 
 
 @client.tree.command(name="rolepanel4", description="Kirim panel role regional")
 async def rolepanel4(interaction: discord.Interaction):
-    embed = discord.Embed(
+    regional_file, regional_image_url = load_role_panel_image(REGIONAL_PANEL_IMAGE_PATH, "dpnpregional.png")
+    if not regional_image_url:
+        regional_image_url = REGIONAL_PANEL_IMAGE_URL
+    embed = make_role_panel_embed(
         title="DPNP SERVER - REGIONAL ROLES",
         description="Pilih satu role regional dari menu di bawah.",
-        color=discord.Color.green()
+        color=discord.Color.green(),
+        image_url=regional_image_url,
     )
-    await interaction.response.send_message(embed=embed, view=RegionalRolePanel())
+    if regional_file:
+        await interaction.response.send_message(embed=embed, view=RegionalRolePanel(), file=regional_file)
+    else:
+        await interaction.response.send_message(embed=embed, view=RegionalRolePanel())
 
 if not TOKEN:
     raise RuntimeError("TOKEN belum di-set. Isi environment variable TOKEN di Railway.")
